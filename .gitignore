@@ -1,0 +1,9 @@
+# 공개 저장소에 올리지 않는 것
+# - data/: 네이버 원본(닉네임·프로필 포함), 수집 캐시, 로그 → 데스크탑에만
+# - .claude/: 로컬 개발 설정
+# - 옛 맥 주간 수집 설정: 맥 사용자 경로가 들어 있고 더 안 씀
+data/
+.claude/
+scripts/com.matjip.weekly.plist
+__pycache__/
+.DS_Store

@@ -1,0 +1,126 @@
+"""로컬 개발 서버: app/ 정적 파일 + /api/transit (네이버 지도 대중교통 경로를 대신 받아 요약해서 돌려줌)
++ /api/sync (앱의 동기화 버튼 → scripts/sync.py 실행, 진행 상황 조회).
+
+브라우저는 네이버에 직접 요청할 수 없어서(CORS) 이 서버가 중계한다.
+배포 후에는 같은 역할을 supabase/functions/transit 이 맡는다.
+
+실행: python3 scripts/dev_server.py  →  http://localhost:5173
+"""
+import functools
+import http.server
+import json
+import pathlib
+import re
+import subprocess
+import sys
+import threading
+import urllib.parse
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+APP = ROOT / "app"
+SYNC_LOG = ROOT / "data" / "sync.log"
+sync_lock = threading.Lock()
+sync_proc = None
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+COORD = re.compile(r"^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$")
+
+
+def summarize(d):
+    """네이버 응답에서 화면에 필요한 것만: 총 시간, 도보, 요금, 환승, 구간."""
+    paths = d.get("paths") or []
+    if not paths:
+        return {"ok": False, "status": d.get("status")}
+    p = paths[0]
+    steps = []
+    for leg in p.get("legs") or []:
+        for st in leg.get("steps") or []:
+            names = [r.get("name") for r in (st.get("routes") or []) if r.get("name")]
+            stations = st.get("stations") or []
+            steps.append({
+                "type": st.get("type"),
+                "min": st.get("duration"),
+                "name": names[0] if names else None,
+                "from": stations[0].get("displayName") if stations else None,
+                "to": stations[-1].get("displayName") if stations else None,
+            })
+    return {
+        "ok": True,
+        "min": p.get("duration"),
+        "walk": p.get("walkingDuration"),
+        "fare": p.get("fare"),
+        "transfers": p.get("transferCount"),
+        "kind": d.get("status"),  # CITY / INTERCITY / WALK
+        "steps": steps,
+    }
+
+
+def naver_transit(start, goal):
+    url = ("https://map.naver.com/p/api/directions/pubtrans?" +
+           urllib.parse.urlencode({"start": start, "goal": goal, "crs": "EPSG:4326", "mode": "TIME", "lang": "ko"}))
+    r = subprocess.run(["curl", "-s", "--max-time", "12", "-A", UA, "-H", "Referer: https://map.naver.com/", url],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return summarize(json.loads(r.stdout))
+
+
+def sync_status():
+    running = sync_proc is not None and sync_proc.poll() is None
+    lines = SYNC_LOG.read_text(encoding="utf-8", errors="replace").splitlines() if SYNC_LOG.exists() else []
+    return {"ok": True, "running": running, "log": lines[-6:],
+            "finishedAt": None if running or not SYNC_LOG.exists() else int(SYNC_LOG.stat().st_mtime)}
+
+
+def start_sync():
+    global sync_proc
+    with sync_lock:
+        if sync_proc is not None and sync_proc.poll() is None:
+            return False
+        log = SYNC_LOG.open("w", encoding="utf-8")
+        sync_proc = subprocess.Popen([sys.executable, "-I", "-X", "utf8", str(ROOT / "scripts" / "sync.py")], cwd=ROOT,
+                                     stdout=log, stderr=subprocess.STDOUT)
+        log.close()
+        return True
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_POST(self):
+        if urllib.parse.urlparse(self.path).path != "/api/sync":
+            return self._json(404, {"ok": False})
+        # 다른 사이트가 몰래 부르지 못하게: 커스텀 헤더가 있으면 브라우저가 사전 확인을 하고, 여기선 허락하지 않는다
+        if self.headers.get("X-Hanjeom") != "sync":
+            return self._json(403, {"ok": False})
+        started = start_sync()
+        return self._json(200, {**sync_status(), "started": started})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        if u.path == "/api/sync":
+            return self._json(200, sync_status())
+        if u.path == "/api/transit":
+            q = urllib.parse.parse_qs(u.query)
+            start, goal = (q.get("start") or [""])[0], (q.get("goal") or [""])[0]
+            if not (COORD.match(start) and COORD.match(goal)):
+                return self._json(400, {"ok": False, "error": "start/goal = lng,lat"})
+            try:
+                return self._json(200, naver_transit(start, goal))
+            except Exception as e:  # noqa: BLE001
+                return self._json(502, {"ok": False, "error": type(e).__name__})
+        return super().do_GET()
+
+    def _json(self, code, obj):
+        body = json.dumps(obj, ensure_ascii=False).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt, *args):
+        if "/api/" in (args[0] if args else ""):
+            super().log_message(fmt, *args)
+
+
+if __name__ == "__main__":
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 5173), functools.partial(Handler, directory=str(APP)))
+    print("http://localhost:5173", flush=True)
+    srv.serve_forever()

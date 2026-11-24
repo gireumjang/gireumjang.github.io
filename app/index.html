@@ -1,0 +1,1321 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>한 점</title>
+<meta name="apple-mobile-web-app-title" content="한 점">
+<style>
+:root {
+  --bg: #f2f2f7;
+  --land: #ffffff;
+  --land-stroke: #d8d8de;
+  --seoul: #ffe9d6;
+  --seoul-stroke: #f0b787;
+  --sea: #e8eef6;
+  --label: #000;
+  --label2: rgba(60,60,67,.6);
+  --label3: rgba(60,60,67,.3);
+  --fill: rgba(118,118,128,.12);
+  --sheet: rgba(255,255,255,.82);
+  --cell: #fff;
+  --sep: rgba(60,60,67,.18);
+  --pin: #007aff;
+  --season: #ff6b00;
+  --season-soft: rgba(255,107,0,.12);
+  --dim: rgba(142,142,147,.35);
+  --me: #34c759;
+  --tier2-soft: rgba(0,122,255,.14);
+  --tier3: #a86b00;
+  --tier3-soft: rgba(255,204,0,.2);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000;
+    --land: #1c1c1e;
+    --land-stroke: #38383a;
+    --seoul: #3d2a1a;
+    --seoul-stroke: #8a5a33;
+    --sea: #0a0a0c;
+    --label: #fff;
+    --label2: rgba(235,235,245,.6);
+    --label3: rgba(235,235,245,.3);
+    --fill: rgba(118,118,128,.24);
+    --sheet: rgba(28,28,30,.82);
+    --cell: #2c2c2e;
+    --sep: rgba(84,84,88,.6);
+    --pin: #0a84ff;
+    --season: #ff9f0a;
+    --season-soft: rgba(255,159,10,.16);
+    --dim: rgba(99,99,102,.45);
+    --me: #30d158;
+    --tier2-soft: rgba(10,132,255,.2);
+    --tier3: #ffd60a;
+    --tier3-soft: rgba(255,214,10,.2);
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sea); color: var(--label);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+button, input { font: inherit; color: inherit; border: 0; background: none; padding: 0; }
+button { cursor: pointer; }
+
+/* ---------- map ---------- */
+/* ---------- layout: 위 메뉴 / 왼쪽 지도 / 오른쪽 목록 ---------- */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(360px, 38vw, 460px); }
+#mapWrap { position: relative; min-width: 0; min-height: 0; background: var(--sea); overflow: hidden; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.zreset { position: absolute; right: 12px; bottom: 12px; height: 34px; padding: 0 13px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--pin);
+  background: var(--sheet); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 0 0 .5px var(--sep), 0 4px 12px rgba(0,0,0,.08);
+  opacity: 0; transform: scale(.9); pointer-events: none; transition: opacity .25s, transform .35s cubic-bezier(.32,.72,0,1); }
+.zreset.on { opacity: 1; transform: none; pointer-events: auto; }
+.maphint { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: var(--label2); background: var(--sheet);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); padding: 6px 10px; border-radius: 999px; pointer-events: none; }
+@media (max-width: 719px) {
+  /* 아이폰 세로: 지도 위, 목록 아래 (겹치지 않게) */
+  .main { grid-template-columns: 1fr; grid-template-rows: 48% minmax(0, 1fr); }
+  .maphint { display: none; }
+}
+.prov { fill: var(--land); stroke: var(--land-stroke); stroke-width: .8; stroke-linejoin: round; transition: fill .3s; }
+.prov.focus { fill: var(--seoul); }
+.gu { fill: var(--seoul); stroke: var(--seoul-stroke); stroke-width: .6; stroke-linejoin: round; transition: fill .3s; }
+.gu.focus, .muni { fill: var(--season-soft); stroke: var(--season); stroke-width: 1.2; stroke-linejoin: round; }
+.muni.sub { fill: none; stroke: var(--land-stroke); stroke-width: .5; }
+.plabel { font-size: 10px; font-weight: 600; fill: var(--label3); text-anchor: middle; pointer-events: none; letter-spacing: -.2px; }
+.plabel.big { font-size: 13px; fill: var(--label2); }
+/* 직접 확대하면 시·군·구 경계와 이름이 나타난다 */
+.zoomlayer { opacity: 0; transition: opacity .3s; pointer-events: none; }
+#map.zoomed .zoomlayer { opacity: 1; }
+.zline { fill: none; stroke: var(--land-stroke); stroke-width: .6; stroke-linejoin: round; }
+.dline { fill: none; stroke: var(--season); stroke-opacity: .4; stroke-width: .7; stroke-linejoin: round; pointer-events: none; }
+.dlab { font-size: 10px; font-weight: 500; fill: var(--label2); text-anchor: middle; pointer-events: none; letter-spacing: -.3px;
+  paint-order: stroke; stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; }
+.attr { position: absolute; left: 12px; bottom: 44px; max-width: 70%; font-size: 10px; line-height: 1.3; color: var(--label3); pointer-events: none;
+  opacity: 0; transition: opacity .3s; }
+#mapWrap:has(#map.dongs) .attr { opacity: 1; }
+@media (max-width: 719px) { .attr { bottom: 8px; } }
+.zlab { font-size: 11px; font-weight: 600; fill: var(--label2); text-anchor: middle; letter-spacing: -.2px;
+  paint-order: stroke; stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; }
+.pin { fill: var(--pin); stroke: var(--land); stroke-width: 1; pointer-events: none; }
+#gMe, #gLabels { pointer-events: none; }
+.pin.season { fill: var(--season); }
+.pin.off { fill: var(--dim); stroke: none; }
+.pin.sel { stroke: var(--label); stroke-width: 2; }
+.pulse { fill: none; stroke: var(--season); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
+  animation: pulse 2.2s cubic-bezier(.2,.6,.3,1) infinite; pointer-events: none; }
+@keyframes pulse { from { transform: scale(.6); opacity: .9; } to { transform: scale(3.4); opacity: 0; } }
+.me { fill: var(--me); stroke: #fff; stroke-width: 2.5; }
+.mehalo { fill: var(--me); opacity: .18; }
+
+/* ---------- header (large title, iOS) ---------- */
+header { flex: none; position: relative; z-index: 5;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 16px 10px;
+  background: var(--bg); box-shadow: 0 .5px 0 var(--sep); }
+/* 로고(이미지): 헤더 가운데. 아이폰은 뒤로 버튼 줄~제목 줄에 걸쳐 가운데 */
+.toprow { position: relative; }
+.logo { position: absolute; left: 50%; top: 2px; transform: translateX(-50%); pointer-events: none; }
+.logo img { display: block; height: 62px; width: auto; }
+.logo .lg-dark { display: none; }
+@media (prefers-color-scheme: dark) { .logo .lg-light { display: none; } .logo .lg-dark { display: block; } }
+@media (max-width: 719px) { #title { max-width: calc(50% - 56px); } }
+@media (min-width: 720px) {
+  /* 넓은 화면: 제목·검색 한 줄, 칩 두 줄 */
+  .toprow { display: flex; align-items: flex-end; gap: 16px; }
+  .toprow .titlewrap { flex: none; min-width: 200px; }
+  .toprow .searchrow { flex: 1; max-width: min(560px, calc(50% - 180px)); margin: 0 0 4px auto; }
+  .logo { top: auto; bottom: 2px; }
+  .logo img { height: 68px; }
+}
+.crumb { font-size: 15px; color: var(--pin); font-weight: 600; height: 30px; padding: 0 12px 0 8px; margin-bottom: 4px; border-radius: 999px; background: var(--fill); display: inline-flex; align-items: center; gap: 2px;
+  opacity: 0; transform: translateX(-8px); transition: opacity .3s, transform .45s cubic-bezier(.32,.72,0,1); pointer-events: none; }
+.crumb.on { opacity: 1; transform: none; pointer-events: auto; }
+.titlebar { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: .3px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.month { flex: none; display: flex; align-items: center; gap: 2px; background: var(--fill); border-radius: 999px; padding: 4px; margin-bottom: 4px; }
+.month button { width: 26px; height: 26px; border-radius: 50%; font-size: 15px; color: var(--label2); }
+.month span { font-size: 15px; font-weight: 600; min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
+.searchrow { display: flex; gap: 8px; margin-top: 8px; }
+.search { flex: 1; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border-radius: 10px; background: var(--fill); }
+.search svg { flex: none; opacity: .5; }
+.search input { flex: 1; min-width: 0; height: 100%; font-size: 17px; outline: none; }
+.search input::placeholder { color: var(--label2); }
+.search .x { width: 18px; height: 18px; border-radius: 50%; background: var(--label3); color: var(--bg); font-size: 12px; line-height: 18px; text-align: center; display: none; }
+.search.has .x { display: block; }
+.locbtn { flex: none; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--fill); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 4px; white-space: nowrap; max-width: 38%; }
+.locbtn span { overflow: hidden; text-overflow: ellipsis; }
+.locbtn.on { background: rgba(52,199,89,.16); color: var(--me); }
+.chips { display: flex; gap: 8px; margin: 8px -16px 0; padding: 0 16px 2px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; height: 32px; padding: 0 13px; border-radius: 999px; font-size: 15px; font-weight: 500;
+  background: var(--sheet); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 0 0 .5px var(--sep); transition: transform .2s cubic-bezier(.32,.72,0,1), background .2s, color .2s; white-space: nowrap; }
+.chip:active { transform: scale(.94); }
+.chip.on { background: var(--label); color: var(--bg); box-shadow: none; }
+.chip.season.on { background: var(--season); color: #fff; }
+.chip.region { background: transparent; box-shadow: inset 0 0 0 1px var(--sep); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.chip.region.on { background: var(--pin); color: #fff; box-shadow: none; }
+.chip b { font-weight: 600; opacity: .55; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.chip.disabled { opacity: .35; }
+.vsep { flex: none; width: 1px; background: var(--sep); margin: 6px 2px; }
+
+/* ---------- bottom sheet ---------- */
+#panel { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg);
+  box-shadow: -.5px 0 0 var(--sep); }
+@media (max-width: 719px) { #panel { box-shadow: 0 -.5px 0 var(--sep); } }
+.pages { position: relative; flex: 1; overflow: hidden; overflow: clip; padding-top: 10px; }
+.page { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  transition: transform .5s cubic-bezier(.32,.72,0,1), opacity .5s; }
+.page.right { transform: translateX(100%); }
+.page.left { transform: translateX(-28%); opacity: 0; pointer-events: none; }
+.sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 2px 10px; }
+.sheet-head h2 { margin: 0; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-head span { flex: none; font-size: 15px; color: var(--label2); }
+.syncbtn { margin-left: 10px; height: 28px; padding: 0 11px; border-radius: 999px; background: var(--fill); color: var(--pin); font-size: 14px; font-weight: 600; }
+.syncbtn.busy { color: var(--label2); }
+.seg { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; margin: 0 0 14px; }
+.seg button { flex: 1; height: 28px; border-radius: 7px; font-size: 13px; font-weight: 500; }
+.seg button.on { background: var(--cell); box-shadow: 0 3px 8px rgba(0,0,0,.12); font-weight: 600; }
+
+.group { background: var(--cell); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+.ghead { font-size: 13px; color: var(--label2); margin: 0 4px 6px; letter-spacing: .2px; }
+.row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 16px; position: relative; }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 60px; right: 0; height: .5px; background: var(--sep); }
+.row:active { background: var(--fill); }
+.ico { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 17px; background: var(--fill); }
+.ico.season { background: var(--season-soft); }
+.rmain { flex: 1; min-width: 0; }
+.rname { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rsub { font-size: 13px; color: var(--label2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rhit { font-size: 13px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padding: 0 1px; }
+.tag { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px;
+  background: var(--season-soft); color: var(--season); margin-right: 4px; vertical-align: 1px; }
+.tag.off { background: var(--fill); color: var(--label2); }
+.tag.gray { background: var(--fill); color: var(--label2); font-weight: 500; }
+.tag.went { background: rgba(52,199,89,.16); color: var(--me); }
+.tag.went.t2, .visit.on.t2 { background: var(--tier2-soft); color: var(--pin); }
+.tag.went.t3, .visit.on.t3 { background: var(--tier3-soft); color: var(--tier3); animation: hof 2.6s ease-in-out infinite; }
+@keyframes hof { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .tag.went.t3, .visit.on.t3 { animation: none; } }
+.openrow { display: flex; align-items: baseline; gap: 8px; margin: -6px 0 12px; font-size: 15px; }
+.openrow b { font-weight: 600; color: var(--label2); }
+.openrow.open b { color: var(--me); } .openrow.closed b { color: #ff3b30; }
+.openrow span { color: var(--label2); font-variant-numeric: tabular-nums; }
+.visitbox { background: var(--cell); border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; }
+.visitrow { display: flex; align-items: center; gap: 10px; }
+.memo { display: block; width: 100%; margin-top: 10px; padding: 10px 2px 0; border: 0; border-top: .5px solid var(--sep); background: transparent;
+  color: var(--label); font: inherit; font-size: 15px; line-height: 1.4; resize: none; outline: none; overflow: hidden; }
+.memo::placeholder { color: var(--label3); }
+.visit { height: 36px; padding: 0 16px; border-radius: 999px; background: var(--fill); font-weight: 600; font-size: 15px; transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.visit:active { transform: scale(.94); }
+.visit.on { background: rgba(52,199,89,.16); color: var(--me); }
+.visitrow small { font-size: 12px; color: var(--label2); }
+.visitrow .undo { font-size: 13px; color: var(--pin); margin-left: auto; }
+.nearcta { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 16px; border-radius: 14px; margin-bottom: 20px;
+  background: rgba(52,199,89,.12); }
+.nearcta > span { font-size: 26px; } .nearcta b { display: block; font-size: 17px; } .nearcta small { font-size: 13px; color: var(--label2); }
+.nearcta em { margin-left: auto; font-style: normal; color: var(--label3); font-size: 20px; }
+.minis { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.minis > button, .minis > .mini { text-align: left; }
+.mini { display: inline-flex; flex-direction: column; background: var(--cell); border-radius: 12px; padding: 8px 12px; }
+.mini b { font-size: 15px; font-weight: 600; } .mini small { font-size: 12px; color: var(--label2); }
+.foodhero small { display: block; }
+.rt { flex: none; text-align: right; font-size: 13px; color: var(--label2); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.rt b { display: block; font-size: 15px; color: var(--me); font-weight: 600; }
+.star { color: #ff9500; font-weight: 600; }
+.chev { flex: none; color: var(--label3); font-size: 18px; }
+.more { display: block; width: 100%; padding: 13px; text-align: center; color: var(--pin); font-size: 17px; }
+.empty { padding: 16px; font-size: 15px; color: var(--label2); line-height: 1.45; }
+
+/* detail */
+.foodgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 20px; }
+.foodstrip { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 20px; padding: 0 16px 2px; scrollbar-width: none; }
+.foodstrip::-webkit-scrollbar { display: none; }
+.foodstrip .food { flex: none; width: 88px; }
+.food { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px 10px; border-radius: 14px; background: var(--cell);
+  transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.food:active { transform: scale(.95); }
+.food .fe { font-size: 30px; line-height: 1.1; }
+.food b { font-size: 15px; font-weight: 600; }
+.food small { font-size: 12px; color: var(--season); font-weight: 600; }
+.food.zero { opacity: .45; } .food.zero small { color: var(--label2); font-weight: 500; }
+.food.on { box-shadow: inset 0 0 0 2px var(--season); }
+.food { position: relative; }
+.food .peak { position: absolute; top: 6px; right: 6px; font-style: normal; font-size: 10px; font-weight: 700; color: #fff; background: var(--season); padding: 1px 5px; border-radius: 5px; }
+.foodhero .tip, .seasonhero .tip { margin-top: 6px; padding-top: 6px; border-top: .5px solid rgba(255,255,255,.35); }
+.foodhero { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; margin-bottom: 20px; color: #fff;
+  background: linear-gradient(135deg, #ff9500, #ff3b30); animation: rise .5s cubic-bezier(.32,.72,0,1) both; }
+.foodhero > span { font-size: 40px; }
+.foodhero b { display: block; font-size: 24px; }
+.foodhero small { font-size: 13px; opacity: .9; }
+.foodhero em { margin-left: auto; font-style: normal; font-size: 20px; font-weight: 700; }
+.dbar { position: sticky; top: 0; z-index: 2; margin: 0 -16px 8px; padding: 4px 16px 8px; background: var(--bg); }
+.back { display: flex; align-items: center; gap: 6px; width: 100%; height: 44px; padding: 0 14px; border-radius: 12px;
+  background: var(--fill); color: var(--pin); font-size: 17px; font-weight: 600; }
+.back:active { transform: scale(.98); opacity: .8; }
+.back small { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--label2); }
+.dname { font-size: 28px; font-weight: 700; margin: 4px 0 4px; letter-spacing: .2px; }
+.dsub { font-size: 15px; color: var(--label2); margin-bottom: 14px; }
+.ttags { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
+.ttags span { font-size: 13px; font-weight: 500; padding: 4px 9px; border-radius: 999px; background: var(--fill); }
+.seasonhero { border-radius: 14px; padding: 14px 16px; margin-bottom: 20px; color: #fff;
+  background: linear-gradient(135deg, #ff9500, #ff3b30); box-shadow: 0 8px 24px rgba(255,90,0,.25);
+  animation: rise .6s cubic-bezier(.32,.72,0,1) both; }
+.seasonhero small { font-size: 13px; font-weight: 600; opacity: .85; }
+.seasonhero div { font-size: 20px; font-weight: 700; margin: 2px 0; }
+.seasonhero p { margin: 0; font-size: 14px; opacity: .92; }
+@keyframes rise { from { transform: translateY(14px) scale(.98); opacity: 0; } }
+.stats { display: flex; gap: 10px; margin-bottom: 12px; }
+.stats div { flex: 1; background: var(--cell); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.stats b { display: block; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats small { font-size: 12px; color: var(--label2); }
+.stats em { font-style: normal; font-size: 12px; color: var(--me); font-weight: 600; margin-left: 4px; }
+.oneliner { font-size: 15px; color: var(--label2); margin: 0 2px 16px; line-height: 1.4; }
+.transit { display: flex; align-items: center; gap: 12px; border-radius: 14px; padding: 12px 16px; margin-bottom: 20px;
+  background: rgba(52,199,89,.12); animation: rise .6s cubic-bezier(.32,.72,0,1) both; }
+.transit small.src { font-size: 11px; color: var(--label3); }
+.transit .big { font-size: 22px; font-weight: 700; color: var(--me); font-variant-numeric: tabular-nums; }
+.transit small { display: block; font-size: 13px; color: var(--label2); }
+.transit.ask { background: var(--fill); }
+.transit.ask button { color: var(--pin); font-weight: 600; font-size: 15px; }
+.bars { padding: 6px 0; }
+.bar { display: grid; grid-template-columns: 7.5em 1fr 3em; align-items: center; gap: 10px; padding: 7px 16px; font-size: 15px; }
+.bn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt { height: 8px; border-radius: 4px; background: var(--fill); overflow: hidden; }
+.bt i { display: block; height: 100%; width: var(--w); border-radius: 4px; background: var(--pin);
+  transform-origin: left; animation: grow .7s cubic-bezier(.32,.72,0,1) var(--d) both; }
+.bar:first-child .bt i { background: #ff9500; }
+@keyframes grow { from { transform: scaleX(0); } }
+.bc { text-align: right; color: var(--label2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.menu { display: flex; align-items: center; gap: 12px; padding: 10px 16px; position: relative; }
+.menu + .menu::before { content: ""; position: absolute; top: 0; left: 76px; right: 0; height: .5px; background: var(--sep); }
+.menu img, .noimg { flex: none; width: 48px; height: 48px; border-radius: 10px; object-fit: cover; background: var(--fill); display: grid; place-items: center; font-size: 20px; }
+.mn { flex: 1; font-size: 16px; min-width: 0; }
+.mp { font-size: 15px; color: var(--label2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kwrap { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.kw { background: var(--cell); border-radius: 999px; padding: 7px 12px; font-size: 14px; }
+.kw b { color: var(--label2); font-weight: 500; margin-left: 2px; }
+.info { display: flex; align-items: center; gap: 12px; padding: 12px 16px; position: relative; }
+.info + .info::before { content: ""; position: absolute; top: 0; left: 52px; right: 0; height: .5px; background: var(--sep); }
+.info .ii { flex: none; width: 24px; text-align: center; font-size: 18px; }
+.info .iv { flex: 1; min-width: 0; }
+.info small { display: block; font-size: 12px; color: var(--label2); }
+.info div { font-size: 17px; word-break: keep-all; }
+.info a { color: var(--pin); text-decoration: none; }
+.info .copy { flex: none; color: var(--pin); font-size: 15px; font-weight: 500; }
+
+/* location sheet (modal) */
+#locModal { position: fixed; inset: 0; z-index: 30; display: none; }
+#locModal.on { display: block; }
+#locModal .dim { position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fade .3s both; }
+#locModal .card { position: absolute; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); border-radius: 16px;
+  background: var(--bg); padding: 18px 16px 16px; animation: up .45s cubic-bezier(.32,.72,0,1) both; max-width: 430px; margin: 0 auto; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes up { from { transform: translateY(110%); } }
+#locModal h3 { margin: 0 0 4px; font-size: 20px; }
+#locModal p { margin: 0 0 14px; font-size: 13px; color: var(--label2); line-height: 1.4; }
+#locModal .bigbtn { display: block; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; margin-top: 10px; }
+#locModal .primary { background: var(--pin); color: #fff; }
+#locModal .plain { background: var(--fill); }
+#locModal .field { display: flex; gap: 8px; }
+#locModal .field input { flex: 1; height: 50px; border-radius: 12px; background: var(--cell); padding: 0 14px; font-size: 17px; outline: none; }
+#locModal .field button { flex: none; width: 74px; border-radius: 12px; background: var(--fill); font-weight: 600; color: var(--pin); }
+#locModal .msg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
+
+/* toast */
+#toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 40; transform: translate(-50%, -90px);
+  background: var(--sheet); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  padding: 10px 18px; border-radius: 999px; font-size: 15px; font-weight: 600; transition: transform .5s cubic-bezier(.32,.72,0,1); white-space: nowrap; }
+#toast.on { transform: translate(-50%, 0); }
+
+
+</style>
+</head>
+<body>
+<div id="app">
+<header id="head">
+  <div class="toprow">
+  <div class="titlewrap">
+  <button class="crumb" id="crumb">‹ <span id="crumbTxt">전국</span></button>
+  <div class="titlebar">
+    <h1 id="title">전국</h1>
+    <div class="month" aria-label="제철 기준 월">
+      <button id="mPrev" aria-label="이전 달">‹</button><span id="mTxt">11월</span><button id="mNext" aria-label="다음 달">›</button>
+    </div>
+
+  </div>
+  </div>
+  <div class="logo"><img class="lg-light" src="logo-light.png" alt="한 점"><img class="lg-dark" src="logo-dark.png" alt="한 점"></div>
+  <div class="searchrow">
+    <label class="search" id="searchBox">
+      <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="q" type="search" placeholder="메뉴나 가게 이름으로 찾기" autocomplete="off" enterkeyhint="search">
+      <button class="x" id="qx" aria-label="지우기">✕</button>
+    </label>
+    <button class="locbtn" id="locBtn">📍 <span id="locTxt">내 위치</span></button>
+  </div>
+  </div>
+  <div class="chips" id="regionChips"></div>
+  <div class="chips" id="typeChips"></div>
+</header>
+
+<div class="main">
+  <div id="mapWrap">
+    <svg id="map" aria-label="저장한 맛집 지도">
+      <g id="gProv"></g><g id="gGu"></g><g id="gZoomLine" class="zoomlayer"></g><g id="gMuni"></g><g id="gDong"></g><g id="gLabels"></g><g id="gZoomLab" class="zoomlayer"></g><g id="gDongLab"></g><g id="gPulse"></g><g id="gPins"></g><g id="gMe"></g>
+    </svg>
+    <div class="maphint" id="mapHint">지역을 누르거나 휠·두 손가락으로 확대해 보세요</div>
+    <button class="zreset" id="zoomReset">↺ 전체 보기</button>
+    <div class="attr">행정동 경계: 통계청 SGIS(공공누리 1유형), 가공 vuski/admdongkor (CC BY 4.0)</div>
+  </div>
+  <section id="panel">
+    <div class="pages">
+      <div class="page" id="pList"></div>
+      <div class="page right" id="pDetail"></div>
+    </div>
+  </section>
+</div>
+</div>
+
+<div id="locModal">
+  <div class="dim" id="locDim"></div>
+  <div class="card">
+    <h3>내 위치</h3>
+    <p>대중교통으로 대략 얼마나 걸리는지 계산할 출발지예요. 역 이름, 동네, 주소, 저장한 가게 이름 모두 돼요.</p>
+    <div class="field"><input id="locInput" placeholder="예: 강남역, 성수동, 망원동" enterkeyhint="go"><button id="locGo">설정</button></div>
+    <div class="msg" id="locMsg"></div>
+    <button class="bigbtn primary" id="locGps">📍 현재 위치 사용</button>
+    <button class="bigbtn plain" id="locClear">위치 지우기</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="geo.js"></script>
+<script src="places.js"></script>
+<script src="types.js"></script>
+<script src="season.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const svg = $("#map");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+// ---------- 지역 이름 ----------
+const PROV_SHORT = { "서울특별시":"서울","부산광역시":"부산","대구광역시":"대구","인천광역시":"인천","광주광역시":"광주","대전광역시":"대전","울산광역시":"울산","세종특별자치시":"세종","경기도":"경기","강원도":"강원","충청북도":"충북","충청남도":"충남","전라북도":"전북","전라남도":"전남","경상북도":"경북","경상남도":"경남","제주특별자치도":"제주" };
+const SEOUL = [126.991, 37.552];
+const COSLAT = Math.cos(36.5 * Math.PI / 180);
+const TYPES = window.TYPES;
+const TYPE = Object.fromEntries(TYPES.map((t) => [t.id, t]));
+
+// ---------- 데이터 ----------
+const places = window.PLACES;
+const centroid = (polys) => {
+  let best = polys[0], n = 0;
+  for (const r of polys) if (r.length > n) { n = r.length; best = r; }
+  let x = 0, y = 0; for (const [a, b] of best) { x += a; y += b; }
+  return [x / best.length, y / best.length];
+};
+const provinces = window.GEO.provinces.map((f) => ({ ...f, short: PROV_SHORT[f.name] || f.name, c: centroid(f.polys) }));
+const gus = window.GEO.seoul.map((f) => ({ ...f, prov: "서울", c: centroid(f.polys) }));
+const munis = [...gus, ...window.GEO.munis.map((f) => ({ ...f, c: centroid(f.polys) }))];
+for (const p of places) {
+  // 검색용 텍스트 (이름, 업종, 유형, 메뉴, 후기 메뉴, 키워드, 주소)
+  p.hay = [p.name, p.kind, p.cat, ...(p.types || []).map((t) => TYPE[t] && TYPE[t].label), ...(p.menus || []).map((m) => m.name),
+    ...(p.reviewMenus || []).map((m) => m.name), ...(p.keywords || []).map((k) => k.name), p.addr].filter(Boolean).join(" ").toLowerCase();
+}
+
+// ---------- 상태 ----------
+const now = new Date();
+const state = {
+  month: now.getMonth() + 1,
+  season: false, type: null, q: "", food: null,
+  focus: { type: "home" },   // home | prov{prov} | area{prov, area}
+  selected: null,
+  me: store.get("me"),       // {lat,lng,label}
+  sort: "default",           // default | near | rating
+};
+for (const p of places) p.tags = window.seasonTags(p, state.month);
+
+// ---------- 스프링 (iOS 느낌) ----------
+class Spring {
+  constructor(v, k = 140, z = 0.86) { this.v = v; this.t = v; this.vel = 0; this.k = k; this.c = 2 * Math.sqrt(k) * z; }
+  step(dt) { const a = -this.k * (this.v - this.t) - this.c * this.vel; this.vel += a * dt; this.v += this.vel * dt; }
+  get done() { return Math.abs(this.v - this.t) < 1e-4 && Math.abs(this.vel) < 1e-4; }
+}
+const cam = { lng: new Spring(SEOUL[0]), lat: new Spring(SEOUL[1]), d: new Spring(0, 90, 0.8), r0: new Spring(0.2, 90, 0.8) };
+
+// ---------- 돋보기 투영: 초점 반경 r0 안은 크게(배율 1+d), 바깥은 원래 모양 유지 ----------
+function warp(lng, lat) {
+  const dx = (lng - cam.lng.v) * COSLAT, dy = cam.lat.v - lat;
+  const r = Math.hypot(dx, dy);
+  if (r < 1e-9) return [0, 0];
+  const r0 = Math.max(1e-3, cam.r0.v), d = Math.max(0, cam.d.v);
+  return [dx * (r + d * r0 * Math.tanh(r / r0)) / r, dy * (r + d * r0 * Math.tanh(r / r0)) / r];
+}
+let view = { W: 0, H: 0, top: 0, bottom: 0 };
+let fit = { s: 1, ox: 0, oy: 0 };
+function computeFit() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const f of provinces) for (const ring of f.polys) for (let i = 0; i < ring.length; i += 3) {
+    const [x, y] = warp(ring[i][0], ring[i][1]);
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  const pad = 12, aw = view.W - pad * 2, ah = view.bottom - view.top - pad * 2;
+  const s = Math.min(aw / (x1 - x0), ah / (y1 - y0));
+  fit = { s, ox: pad + (aw - (x1 - x0) * s) / 2 - x0 * s, oy: view.top + pad + (ah - (y1 - y0) * s) / 2 - y0 * s };
+}
+// 사용자 확대/이동 (휠·핀치·드래그). 화면 좌표에 배율 z, 이동 x·y. 핀 크기는 그대로 두고 위치만 벌어진다.
+const uz = { z: new Spring(1, 300, 1), x: new Spring(0, 300, 1), y: new Spring(0, 300, 1) };
+const P = (lng, lat) => { const [x, y] = warp(lng, lat); return [(x * fit.s + fit.ox) * uz.z.v + uz.x.v, (y * fit.s + fit.oy) * uz.z.v + uz.y.v]; };
+const pathOf = (polys) => {
+  let s = "";
+  for (const ring of polys) {
+    for (let i = 0; i < ring.length; i++) { const [x, y] = P(ring[i][0], ring[i][1]); s += (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1); }
+    s += "Z";
+  }
+  return s;
+};
+
+// ---------- SVG ----------
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+for (const f of provinces) f.el = el("path", { class: "prov", "data-prov": f.short }, $("#gProv"));
+for (const g of gus) g.el = el("path", { class: "gu", "data-prov": "서울", "data-area": g.name }, $("#gGu"));
+for (const f of provinces) if (f.short !== "서울") f.lab = el("text", { class: "plabel" }, $("#gLabels")), f.lab.textContent = f.short;
+const areaLabel = el("text", { class: "plabel big" }, $("#gLabels"));
+// 확대용 시·군·구: 서울 구는 gGu가 이미 그리므로 선은 나머지만. 이름은 저장한 가게가 많은 곳부터 자리를 차지한다.
+const zLines = munis.filter((m) => m.prov !== "서울").map((m) => ({ m, el: el("path", { class: "zline" }, $("#gZoomLine")) }));
+const zLabs = munis.map((m) => {
+  const n = places.filter((p) => p.region === m.prov && p.area && (p.area.startsWith(m.name) || m.name.startsWith(p.area))).length;
+  // 경계 자료는 큰 시의 구를 '성남시분당구'처럼 붙여 씀 → '분당구'만. '북구'처럼 짧으면 '포항 북구'
+  const [, city, gu] = m.name.match(/^(\S+?)시(\S+구)$/) || [];
+  const label = !gu ? m.name : gu.length <= 2 ? `${city} ${gu}` : gu;
+  const t = el("text", { class: "zlab" }, $("#gZoomLab")); t.textContent = label;
+  return { m, n, el: t, w: label.length * 11 + 6 };
+}).sort((a, b) => b.n - a.n);
+const ZOOM_DETAIL = 1.6;
+function drawZoomDetail() {
+  const on = uz.z.v > ZOOM_DETAIL && state.focus.type !== "area";  // 구 안에서는 동 이름이 대신 나온다
+  svg.classList.toggle("zoomed", on);
+  if (!on) return;
+  for (const z of zLines) z.el.setAttribute("d", pathOf(z.m.polys));
+  const placed = [];
+  for (const z of zLabs) {
+    const [x, y] = P(z.m.c[0], z.m.c[1]);
+    const box = [x - z.w / 2, y - 8, x + z.w / 2, y + 6];
+    const fits = box[0] > 0 && box[2] < view.W && box[1] > 0 && box[3] < view.H &&
+      !placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]);
+    z.el.style.display = fits ? "" : "none";
+    if (fits) { placed.push(box); z.el.setAttribute("x", x.toFixed(1)); z.el.setAttribute("y", (y + 4).toFixed(1)); }
+  }
+}
+for (const p of places) p.el = el("circle", { class: "pin", r: 0 }, $("#gPins"));
+const meHalo = el("circle", { class: "mehalo", r: 0 }, $("#gMe"));
+const meDot = el("circle", { class: "me", r: 0 }, $("#gMe"));
+let muniEls = []; // 현재 포커스된 도의 시군구 경계
+
+const t0 = performance.now();
+for (const p of places) {
+  const dist = Math.hypot((p.lng - SEOUL[0]) * COSLAT, p.lat - SEOUL[1]);
+  p.delay = 350 + Math.min(dist, 4) * 220 + Math.random() * 260;
+}
+const backOut = (t) => { const c = 1.9; t -= 1; return 1 + t * t * ((c + 1) * t + c); };
+
+// ---------- 필터 ----------
+const inRegion = (p, f = state.focus) =>
+  f.type === "home" ? true : f.type === "prov" ? p.region === f.prov : p.region === f.prov && p.area === f.area;
+const matchQ = (p) => {
+  if (!state.q) return true;
+  return state.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => p.hay.includes(w));
+};
+const passType = (p) => (!state.type || (p.types || []).includes(state.type));
+const passToggles = (p) => (!state.season || p.tags.length) &&(!state.food || p.tags.some((t) => t.key === state.food));
+const visible = (p) => inRegion(p) && matchQ(p) && passType(p) && passToggles(p);
+const pinR = (p) => (p === state.selected ? 7 : p.tags.length ? 4.4 : 3);
+
+// ---------- 포커스(지역) ----------
+function lensFor(list, fallback) {
+  // 해당 지역 가게들의 중심과 퍼진 정도로 돋보기 크기를 정한다
+  if (!list.length) return { c: fallback, r0: 0.25 };
+  const c = [list.reduce((s, p) => s + p.lng, 0) / list.length, list.reduce((s, p) => s + p.lat, 0) / list.length];
+  const ds = list.map((p) => Math.hypot((p.lng - c[0]) * COSLAT, p.lat - c[1])).sort((a, b) => a - b);
+  const spread = ds[Math.floor(ds.length * 0.85)] || 0.03;
+  return { c, r0: Math.min(0.7, Math.max(0.03, spread * 1.05)) };
+}
+function setFocus(focus) {
+  state.focus = focus;
+  setZoom(1, 0, 0);
+  let c = SEOUL, d = 0, r0 = 0.2;
+  if (focus.type === "prov") {
+    const f = provinces.find((x) => x.short === focus.prov);
+    const L = lensFor(places.filter((p) => p.region === focus.prov), f ? f.c : SEOUL);
+    c = focus.prov === "서울" ? SEOUL : L.c; r0 = focus.prov === "서울" ? 0.2 : L.r0;
+  }
+  if (focus.type === "area") {
+    const ms = munis.filter((m) => m.prov === focus.prov && m.name.startsWith(focus.area));
+    const L = lensFor(places.filter((p) => inRegion(p, focus)), ms[0] ? ms[0].c : SEOUL);
+    c = focus.prov === "서울" && ms[0] ? ms[0].c : L.c; r0 = focus.prov === "서울" ? 0.035 : L.r0;
+  }
+  if (focus.type !== "home") d = Math.min(60, Math.max(2.5, 2 / r0));
+  cam.lng.t = c[0]; cam.lat.t = c[1]; cam.d.t = d; cam.r0.t = r0;
+
+  for (const f of provinces) f.el.classList.toggle("focus", focus.type !== "home" && f.short === focus.prov && f.short !== "서울");
+  for (const g of gus) g.el.classList.toggle("focus", focus.type === "area" && focus.prov === "서울" && g.name === focus.area);
+  // 도 안의 시군구 경계 (탭해서 좁혀가기)
+  $("#gMuni").textContent = ""; muniEls = [];
+  if (focus.type !== "home" && focus.prov !== "서울") {
+    for (const m of munis.filter((m) => m.prov === focus.prov)) {
+      const on = focus.type === "area" && m.name.startsWith(focus.area);
+      muniEls.push({ m, el: el("path", { class: on ? "muni" : "muni sub", "data-prov": focus.prov, "data-area": areaOf(m.name, focus.prov) }, $("#gMuni")) });
+    }
+  }
+  $("#title").textContent = focus.type === "home" ? "전국" :focus.type === "prov" ? focus.prov : focus.area;
+  $("#crumb").classList.toggle("on", focus.type !== "home");
+  $("#crumbTxt").textContent = focus.type === "area" ? focus.prov : "전국";
+  $("#mapHint").textContent = focus.type === "home" ? "지역을 누르거나 휠·두 손가락으로 확대해 보세요" : focus.type === "prov" ? "구·시를 누르면 동까지 보여요" : "핀을 누르면 가게 정보가 나와요";
+  pendingFit = focus.type === "area" ? focus : null;
+  loadDongs(focus);
+  refresh();
+}
+
+// 시·군·구를 누르면 돋보기 이동이 끝난 뒤 그 지역이 지도에 꽉 차게 한 번 더 확대한다
+let pendingFit = null;
+function fitArea() {
+  const f = pendingFit;
+  if (!f || state.focus !== f) return;
+  // 돋보기 이동이 거의 끝나면 시작 (완전히 멈출 때까지 기다리면 한 박자 늦다)
+  const near = (sp, eps) => Math.abs(sp.v - sp.t) < eps;  if (!(near(cam.lng, 3e-4) && near(cam.lat, 3e-4) && near(cam.d, cam.d.t * 0.04 + 0.05) && near(cam.r0, 0.003) && near(uz.z, 0.03))) return;
+  pendingFit = null;
+  // 계산은 돋보기의 최종 상태 기준으로 (지금 값을 잠깐 목표값으로 바꿔서)
+  const springs = [cam.lng, cam.lat, cam.d, cam.r0, uz.z, uz.x, uz.y], saved = springs.map((sp) => sp.v);
+  for (const sp of springs) sp.v = sp.t;
+  computeFit();
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const s = uz.z.v, ox = uz.x.v, oy = uz.y.v;
+  for (const m of munis) {
+    if (m.prov !== f.prov || !m.name.startsWith(f.area)) continue;
+    for (const ring of m.polys) for (const [lng, lat] of ring) {
+      const [X, Y] = P(lng, lat), x = (X - ox) / s, y = (Y - oy) / s;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  springs.forEach((sp, i) => { sp.v = saved[i]; });
+  computeFit();
+  if (!isFinite(x0)) return;
+  const z = Math.min(6, (view.W * 0.86) / (x1 - x0), (view.H * 0.8) / (y1 - y0));  if (z > 1.1) setZoom(z, view.W / 2 - ((x0 + x1) / 2) * z, view.H / 2 - ((y0 + y1) / 2) * z);
+}
+
+// ---------- 동 경계: 시·군·구를 눌렀을 때만. 도 단위 파일(dong/{코드}.json)을 한 번 받아 둔다 ----------
+const dongCache = {};
+let dongs = [], dongKey = "";
+async function loadDongs(focus) {
+  const key = focus.type === "area" ? `${focus.prov}:${focus.area}` : "";
+  if (key === dongKey) return;
+  dongKey = key;
+  for (const d of dongs) { d.el.remove(); d.lab.remove(); }
+  dongs = [];
+  svg.classList.remove("dongs");
+  if (!key) return kick();
+  const prov = provinces.find((f) => f.short === focus.prov);
+  if (!prov) return;
+  try { dongCache[prov.code] ||= await fetch(`dong/${prov.code}.json`).then((r) => r.json()); } catch { return; }
+  if (dongKey !== key) return;  // 받는 사이 다른 지역을 눌렀으면 버림
+  for (const [muni, list] of Object.entries(dongCache[prov.code])) {
+    if (!muni.startsWith(focus.area)) continue;
+    for (const [name, c, polys] of list) {
+      const t = el("text", { class: "dlab" }, $("#gDongLab")); t.textContent = name;
+      dongs.push({ c, polys, el: el("path", { class: "dline" }, $("#gDong")), lab: t, w: name.length * 10 + 6 });
+    }
+  }
+  svg.classList.add("dongs");
+  kick();
+}
+function drawDongs() {
+  const placed = [];
+  for (const d of dongs) {
+    d.el.setAttribute("d", pathOf(d.polys));
+    const [x, y] = P(d.c[0], d.c[1]);
+    const box = [x - d.w / 2, y - 7, x + d.w / 2, y + 5];
+    const fits = box[0] > 0 && box[2] < view.W && box[1] > 0 && box[3] < view.H &&
+      !placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]);
+    d.lab.style.display = fits ? "" : "none";
+    if (fits) { placed.push(box); d.lab.setAttribute("x", x.toFixed(1)); d.lab.setAttribute("y", (y + 4).toFixed(1)); }
+  }
+}
+// "수원시영통구" → 주소의 "수원시" 로 맞춘다
+function areaOf(muniName, prov) {
+  const areas = new Set(places.filter((p) => p.region === prov).map((p) => p.area));
+  for (const a of areas) if (muniName.startsWith(a)) return a;
+  return muniName.replace(/(시)(.+구)$/, "$1");
+}
+$("#crumb").onclick = () => setFocus(state.focus.type === "area" ? { type: "prov", prov: state.focus.prov } : { type: "home" });
+
+// ---------- 그리기 루프 ----------
+let raf = 0, last = 0;
+function frame(ts) {
+  const dt = Math.min(0.033, (ts - (last || ts)) / 1000 || 0.016); last = ts;
+  cam.lng.step(dt); cam.lat.step(dt); cam.d.step(dt); cam.r0.step(dt);
+  uz.z.step(dt); uz.x.step(dt); uz.y.step(dt);
+  computeFit();
+  for (const f of provinces) {
+    f.el.setAttribute("d", pathOf(f.polys));
+    if (f.lab) { const [x, y] = P(f.c[0], f.c[1]); f.lab.setAttribute("x", x.toFixed(1)); f.lab.setAttribute("y", (y + 3).toFixed(1)); f.lab.style.display = state.focus.type === "home" && uz.z.v <= ZOOM_DETAIL ? "" : "none"; }
+  }
+  for (const g of gus) g.el.setAttribute("d", pathOf(g.polys));
+  for (const m of muniEls) m.el.setAttribute("d", pathOf(m.m.polys));
+  drawZoomDetail();
+  drawDongs();
+  if (state.focus.type === "area") {
+    const [x, y] = P(cam.lng.t, cam.lat.t);
+    areaLabel.setAttribute("x", x.toFixed(1)); areaLabel.setAttribute("y", (y - 22).toFixed(1)); areaLabel.textContent = state.focus.area;
+  } else areaLabel.textContent = "";
+
+  let intro = false;
+  const el_t = ts - t0;
+  for (const p of places) {
+    const [x, y] = P(p.lng, p.lat); p.x = x; p.y = y;
+    const k = Math.max(0, Math.min(1, (el_t - p.delay) / 420));
+    if (k < 1) intro = true;
+    p.el.setAttribute("cx", x.toFixed(1)); p.el.setAttribute("cy", (y - (1 - k) * 18).toFixed(1));
+    p.el.setAttribute("r", (pinR(p) * backOut(k)).toFixed(2));
+  }
+  for (const pl of pulses) { pl.el.setAttribute("cx", pl.p.x.toFixed(1)); pl.el.setAttribute("cy", pl.p.y.toFixed(1)); }
+  if (state.me) {
+    const [x, y] = P(state.me.lng, state.me.lat);
+    for (const e of [meHalo, meDot]) { e.setAttribute("cx", x.toFixed(1)); e.setAttribute("cy", y.toFixed(1)); }
+    meDot.setAttribute("r", 6); meHalo.setAttribute("r", 16);
+  } else { meDot.setAttribute("r", 0); meHalo.setAttribute("r", 0); }
+
+  fitArea();
+  if (!(cam.lng.done && cam.lat.done && cam.d.done && cam.r0.done && uz.z.done && uz.x.done && uz.y.done) || intro) raf = requestAnimationFrame(frame); else raf = 0;
+}
+function kick() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
+
+let pulses = [];
+function stylePins() {
+  const gp = $("#gPulse"); gp.textContent = ""; pulses = [];
+  for (const p of places) {
+    const on = visible(p);
+    p.on = on;
+    p.el.setAttribute("class", "pin" + (!on ? " off" : p.tags.length ? " season" : "") + (p === state.selected ? " sel" : ""));
+    if (on && p.tags.length && pulses.length < 60) pulses.push({ p, el: el("circle", { class: "pulse", r: 4, style: `animation-delay:${(Math.random() * 2).toFixed(2)}s` }, gp) });
+  }
+  const rank = (p) => (p === state.selected ? 4 : !p.on ? 0 : p.tags.length ? 2 : 1);
+  const g = $("#gPins");
+  [...places].sort((a, b) => rank(a) - rank(b)).forEach((p) => g.appendChild(p.el));
+  kick();
+}
+
+// ---------- 칩: 지역 줄 / 유형 줄 ----------
+const countBy = (list, key) => list.reduce((m, p) => ((m[key(p)] = (m[key(p)] || 0) + 1), m), {});
+function renderChips() {
+  const f = state.focus;
+  const base = places.filter((p) => matchQ(p) && passType(p) && passToggles(p));  // 지역 빼고 나머지 조건
+  let html = "";
+  if (f.type === "home") {
+    const c = countBy(base, (p) => p.region);
+    html = Object.entries(countBy(places, (p) => p.region)).sort((a, b) => b[1] - a[1])
+      .map(([r]) => `<button class="chip region ${c[r] ? "" : "disabled"}" data-prov="${r}">${r}<b>${c[r] || 0}</b></button>`).join("");
+  } else {
+    const inProv = base.filter((p) => p.region === f.prov);
+    const c = countBy(inProv, (p) => p.area);
+    const all = Object.entries(countBy(places.filter((p) => p.region === f.prov), (p) => p.area)).sort((a, b) => b[1] - a[1]);
+    html = `<button class="chip region ${f.type === "prov" ? "on" : ""}" data-prov="${f.prov}">${f.prov} 전체<b>${inProv.length}</b></button><span class="vsep"></span>` +
+      all.map(([a]) => `<button class="chip region ${f.type === "area" && f.area === a ? "on" : ""} ${c[a] ? "" : "disabled"}" data-prov="${f.prov}" data-area="${esc(a)}">${esc(a)}<b>${c[a] || 0}</b></button>`).join("");
+  }
+  $("#regionChips").innerHTML = html;
+
+  const scope = places.filter((p) => inRegion(p) && matchQ(p));
+  const tc = {};
+  for (const p of scope.filter(passToggles)) for (const t of p.types || []) tc[t] = (tc[t] || 0) + 1;
+  const scoped = scope.filter(passType);
+  $("#typeChips").innerHTML =
+    `<button class="chip season ${state.season ? "on" : ""}" data-toggle="season">🔥 ${state.month}월 제철<b>${scoped.filter((p) => p.tags.length).length}</b></button><span class="vsep"></span>` +
+    TYPES.filter((t) => tc[t.id] || state.type === t.id)
+      .sort((a, b) => (tc[b.id] || 0) - (tc[a.id] || 0))
+      .map((t) => `<button class="chip ${state.type === t.id ? "on" : ""}" data-type="${t.id}">${t.emoji} ${t.label}<b>${tc[t.id] || 0}</b></button>`).join("");
+}
+$("#regionChips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  select(null);
+  if (b.dataset.area) setFocus(state.focus.type === "area" && state.focus.area === b.dataset.area ? { type: "prov", prov: b.dataset.prov } : { type: "area", prov: b.dataset.prov, area: b.dataset.area });
+  else if (state.focus.type === "home") setFocus({ type: "prov", prov: b.dataset.prov });
+  else setFocus({ type: "prov", prov: b.dataset.prov });
+  b.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" });
+});
+$("#typeChips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  if (b.dataset.toggle) { state[b.dataset.toggle] = !state[b.dataset.toggle]; if (!state.season) state.food = null; }
+  if (b.dataset.type) state.type = state.type === b.dataset.type ? null : b.dataset.type;
+  refresh();
+});
+
+function refresh() { stylePins(); renderChips(); renderList(); kick(); }
+
+// ---------- 검색 ----------
+let qt = 0;
+$("#q").addEventListener("input", (e) => {
+  $("#searchBox").classList.toggle("has", !!e.target.value);
+  clearTimeout(qt);
+  qt = setTimeout(() => { state.q = e.target.value.trim(); select(null); refresh(); if (state.q && cur === "peek") snap("half"); }, 120);
+});
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+$("#qx").addEventListener("click", (e) => { e.preventDefault(); $("#q").value = ""; $("#searchBox").classList.remove("has"); state.q = ""; refresh(); });
+
+// ---------- 월 ----------
+function setSearchHint() {
+  const cnt = {};
+  for (const p of places) for (const t of p.tags) cnt[t.key] = (cnt[t.key] || 0) + 1;
+  const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 2);
+  $("#q").placeholder = top.length ? `${top.join(", ")}, 가게 이름으로 찾기` : "메뉴나 가게 이름으로 찾기";
+}
+setSearchHint();
+function setMonth(m) {
+  state.month = ((m - 1 + 12) % 12) + 1;
+  $("#mTxt").textContent = state.month + "월";
+  for (const p of places) p.tags = window.seasonTags(p, state.month);
+  setSearchHint();
+  state.food = null;
+  refresh();
+  if (state.selected) renderDetail(state.selected);
+  const n = places.filter((p) => p.tags.length).length;
+  toast(n ? `🔥 ${state.month}월 제철 맛집 ${n}곳` : `${state.month}월 제철 맛집은 아직 없어요`);
+}
+$("#mPrev").onclick = () => setMonth(state.month - 1);
+$("#mNext").onclick = () => setMonth(state.month + 1);
+
+// ---------- 대중교통 예상 시간 (직선거리 기반 추정) ----------
+function km(a, b) {
+  const R = 6371, toR = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function transit(p) {
+  if (!state.me) return null;
+  const d = km(state.me, p);
+  let min, how;
+  if (d < 1.2) { min = (d * 1.3) / 4.5 * 60; how = "걸어서"; }          // 도보 4.5km/h
+  else if (d <= 40) { min = 12 + d * 1.35 / 24 * 60; how = "대중교통"; } // 도시 안: 걷기·대기 12분 + 평균 24km/h
+  else if (d <= 150) { min = 30 + d * 1.25 / 55 * 60; how = "대중교통"; } // 광역버스·전철
+  else { min = 50 + d * 1.2 / 140 * 60; how = "기차·버스"; }             // KTX/고속버스
+  return { km: d, min: Math.round(min / 5) * 5 || 5, how };
+}
+// ---------- 영업시간 ----------
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+function hoursFor(p, d = new Date()) {
+  const h = p.hours; if (!h) return null;
+  const day = DAYS[d.getDay()], wk = d.getDay() >= 1 && d.getDay() <= 5;
+  return h[day] || h["매일"] || (wk ? h["평일"] : h["주말"]) || null;
+}
+const toMin = (t) => { const [a, b] = t.split(":").map(Number); return a * 60 + b; };
+function openInfo(p, d = new Date()) {
+  const h = hoursFor(p, d);
+  if (!h) return { known: false };
+  if (!h.start) return { known: true, closed: true, text: h.note || "오늘 휴무" };
+  const now = d.getHours() * 60 + d.getMinutes();
+  let s0 = toMin(h.start), e0 = toMin(h.end); if (e0 <= s0) e0 += 1440;
+  const n = now < s0 && e0 > 1440 && now + 1440 < e0 ? now + 1440 : now;
+  const inBreak = (h.breaks || []).some(([a, b]) => a && b && n >= toMin(a) && n < toMin(b));
+  return { known: true, closed: false, open: n >= s0 && n < e0 && !inBreak, inBreak, text: `${h.start}–${h.end}${h.last ? ` · 라스트오더 ${h.last}` : ""}` };
+}
+const closedToday = (p) => { const o = openInfo(p); return o.known && o.closed; };
+
+// ---------- 갔다 옴 + 자주 간 유형 학습 ----------
+let visits = store.get("visits") || {};          // {placeId: ["2026-11-23", …]}
+const visitCount = (p) => (visits[p.id] || []).length;
+const visitTier = (n) => (n >= 10 ? "t3" : n >= 5 ? "t2" : "t1");
+let notes = store.get("notes") || {};            // {placeId: "메모"}
+function typePrefs() {
+  const c = {}; let total = 0;
+  for (const id in visits) {
+    const pl = places.find((x) => x.id === id); if (!pl) continue;
+    for (const t of pl.types || []) { c[t] = (c[t] || 0) + visits[id].length; total += visits[id].length; }
+  }
+  for (const t in c) c[t] /= total;
+  return c;   // 유형별 비율 0~1
+}
+let prefs = typePrefs();
+const prefBoost = (p) => Math.max(0, ...(p.types || []).map((t) => prefs[t] || 0));  // 0~1
+function markVisit(p) {
+  const today = new Date().toISOString().slice(0, 10);
+  visits[p.id] = [...(visits[p.id] || []), today]; store.set("visits", visits); prefs = typePrefs();
+}
+function undoVisit(p) {
+  const arr = visits[p.id] || []; arr.pop();
+  if (arr.length) visits[p.id] = arr; else delete visits[p.id];
+  store.set("visits", visits); prefs = typePrefs();
+}
+
+// ---------- 실제 대중교통 (네이버 경로, 중계 서버 경유) ----------
+function transitProxy() {
+  const c = window.HANJEOM_CONFIG || {};
+  if (c.transitProxy) return c.transitProxy;
+  return /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "/api/transit" : null;
+}
+const realCache = new Map();
+async function loadRealTransit(p) {
+  const proxy = transitProxy(); if (!proxy || !state.me) return;
+  const key = `${state.me.lng.toFixed(4)},${state.me.lat.toFixed(4)}>${p.id}`;
+  let r = realCache.get(key);
+  if (!r) {
+    try {
+      const res = await fetch(`${proxy}?start=${state.me.lng.toFixed(6)},${state.me.lat.toFixed(6)}&goal=${p.lng},${p.lat}`);
+      r = await res.json();
+    } catch { r = { ok: false }; }
+    realCache.set(key, r);
+  }
+  const box = $("#transitBox");
+  if (!box || state.selected !== p || !r.ok || !r.min) return;   // 실패하면 거리 추정 그대로
+  const ride = (r.steps || []).filter((x) => x.type !== "WALKING" && x.name);
+  const icon = r.kind === "INTERCITY" ? "🚄" : ride.some((x) => x.type === "SUBWAY") ? "🚇" : ride.length ? "🚌" : "🚶";
+  box.classList.add("real");
+  box.innerHTML = `<span style="font-size:24px">${icon}</span><div><div class="big">${fmtMin(r.min)}</div>
+    <small>${esc(state.me.label)}에서 · ${ride.length ? esc(ride.map((x) => (x.type === "BUS" && /^[0-9-]+$/.test(x.name) ? `${x.name}번` : x.name)).join(" → ")) : "걸어서"}${r.walk ? ` · 도보 ${r.walk}분` : ""}${r.fare ? ` · ${r.fare.toLocaleString()}원` : ""}${r.transfers ? ` · 환승 ${r.transfers}회` : ""}</small>
+    <small class="src">네이버 지도 경로 기준 · 지금 출발</small></div>`;
+}
+
+const fmtMin = (m) => (m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ""}`);
+
+// ---------- 리스트 ----------
+const icon = (p) => (p.tags.length ? p.tags[0].emoji : p.types && p.types[0] && TYPE[p.types[0]] ? TYPE[p.types[0]].emoji : "🍽️");
+const hl = (s) => {
+  let out = esc(s);
+  for (const w of state.q.split(/\s+/).filter(Boolean)) out = out.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
+  return out;
+};
+function searchHit(p) {
+  if (!state.q) return "";
+  const ws = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (s) => s && ws.some((w) => s.toLowerCase().includes(w));
+  const m = (p.menus || []).filter((x) => hit(x.name)).slice(0, 2);
+  const r = (p.reviewMenus || []).find((x) => hit(x.name));
+  const parts = [...m.map((x) => `${hl(x.name)}${x.price ? ` <span style="color:var(--label2)">${esc(x.price)}</span>` : ""}`)];
+  if (r) parts.push(`후기에서 ${hl(r.name)} ${r.count}번 언급`);
+  return parts.length ? `<div class="rhit">${parts.join(" · ")}</div>` : "";
+}
+const rowHTML = (p) => {
+  const t = transit(p);
+  return `
+  <button class="row" data-id="${esc(p.id)}">
+    <span class="ico ${p.tags.length ? "season" : ""}">${icon(p)}</span>
+    <span class="rmain">
+      <div class="rname">${state.q ? hl(p.name) : esc(p.name)}</div>
+      <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.emoji} ${x.key}</span>`).join("")}${visitCount(p) ? `<span class="tag went ${visitTier(visitCount(p))}">${visitCount(p) >= 10 ? "★" : "✓"} ${visitCount(p)}번</span>` : ""}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
+      ${searchHit(p)}
+    </span>
+    ${t ? `<span class="rt"><b>${fmtMin(t.min)}</b>${t.km.toFixed(1)}km</span>` : '<span class="chev">›</span>'}
+  </button>`;
+};
+let listLimit = 60;
+function sorter() {
+  if (state.sort === "near" && state.me) return (a, b) => km(state.me, a) - km(state.me, b);
+  if (state.sort === "rating") return (a, b) => ((b.rating || 0) - (a.rating || 0)) || ((b.vr || 0) - (a.vr || 0));
+  return (a, b) => (closedToday(a) - closedToday(b)) || (prefBoost(b) - prefBoost(a)) ||((b.vr || 0) - (a.vr || 0)) || (b.saved - a.saved);
+}
+// 이번 달 제철 음식 카드 (가게 수 포함). scope: 지역·유형 조건만 적용
+function seasonFoods() {
+  const base = places.filter((p) => inRegion(p) && matchQ(p) && passType(p));
+  return Object.entries(window.SEASON_ITEMS)
+    .filter(([, it]) => it.months.includes(state.month))
+    .map(([key, it]) => ({ key, ...it, n: base.filter((p) => p.tags.some((t) => t.key === key)).length }))
+    .sort((a, b) => b.n - a.n);
+}
+const inOrigin = (p, key) => window.originOf(key).some((o) => p.region === o.prov && (p.area || "").startsWith(o.area));
+function monthFoods(m) { return Object.entries(window.SEASON_ITEMS).filter(([, it]) => it.months.includes(m)).map(([k]) => k); }
+function seasonShift() {
+  const nextM = state.month % 12 + 1;
+  const now = monthFoods(state.month), next = monthFoods(nextM);
+  return { nextM, coming: next.filter((k) => !now.includes(k)), ending: now.filter((k) => !next.includes(k)) };
+}
+const savedWith = (key) => places.filter((p) => window.seasonTags(p, window.SEASON_ITEMS[key].months[0]).some((t) => t.key === key)).length;
+const miniFood = (key, sub) => { const it = window.SEASON_ITEMS[key]; return `<span class="mini"><b>${it.emoji} ${key}</b><small>${sub}</small></span>`; };
+const foodCard = (f) => `<button class="food ${f.n ? "" : "zero"} ${state.food === f.key ? "on" : ""}" data-food="${f.key}">
+  <span class="fe">${f.emoji}</span><b>${f.key}</b><small>${f.n ? `${f.n}곳` : "저장한 곳 없음"}</small>${(f.peak || []).includes(state.month) ? '<i class="peak">절정</i>' : ""}</button>`;
+function renderList() {
+  const scope = places.filter(visible).sort(sorter());
+  const f = state.focus;
+  const where = f.type === "home" ? "전국" : f.type === "prov" ? f.prov : `${f.prov} ${f.area}`;
+  const foods = seasonFoods();
+  let h = "";
+  if (state.food) {
+    // 제철 음식 하나를 고른 화면
+    const it = window.SEASON_ITEMS[state.food];
+    const org = window.originOf(state.food);
+    const local = scope.filter((p) => inOrigin(p, state.food)), other = scope.filter((p) => !local.includes(p));
+    const last = !it.months.includes(state.month % 12 + 1);
+    h += `<div class="dbar"><button class="back" id="foodBack">‹ ${state.month}월 제철 음식 전체</button></div>
+      <div class="foodhero"><span>${it.emoji}</span><div><b>${state.food}</b><small>${esc(it.note)} · ${it.months.join("·")}월${(it.peak || []).includes(state.month) ? " · 지금이 절정" : last ? " · 이번 달이 마지막" : ""}</small>${org.length ? `<small>산지 ${org.map((o) => o.label).join(" · ")}</small>` : ""}${it.tip ? `<small class="tip">${esc(it.tip)}</small>` : ""}</div><em>${scope.length}곳</em></div>`;
+    if (local.length) h += `<div class="ghead">📍 산지에서 먹기 · ${local.length}곳</div><div class="group">${local.map(rowHTML).join("")}</div>`;
+    h += `<div class="ghead">${esc(where)}에서 ${state.food} 먹을 수 있는 곳</div><div class="group">${other.map(rowHTML).join("") || `<div class="empty">${local.length ? "산지 말고는 없어요." : "이 지역엔 없어요."}</div>`}</div>`;
+    $("#pList").innerHTML = h; return;
+  }
+  if (state.season && !state.q) {
+    // 제철 칩을 켠 화면: 이번 달 제철 음식 목록부터
+    h += `<div class="sheet-head"><h2>🔥 ${state.month}월 제철 음식</h2><span>${esc(where)}</span></div>
+      <div class="foodgrid">${foods.map(foodCard).join("")}</div>`;
+    const sh = seasonShift();
+    if (sh.ending.length) h += `<div class="ghead">⏳ 이번 달이 마지막</div><div class="minis">${sh.ending.map((k) => `<button data-food="${k}">${miniFood(k, `${foods.find((x) => x.key === k)?.n || 0}곳 · 서두르기`)}</button>`).join("")}</div>`;
+    if (sh.coming.length) h += `<div class="ghead">🗓️ ${sh.nextM}월부터 제철</div><div class="minis">${sh.coming.map((k) => miniFood(k, `저장한 곳 ${savedWith(k)}곳`)).join("")}</div>`;
+    h += `<div class="ghead">제철 메뉴 있는 곳 전체 · ${scope.length}곳</div><div class="group">${scope.slice(0, listLimit).map(rowHTML).join("") || `<div class="empty">이 조건에 맞는 곳이 없어요.</div>`}`;
+    if (scope.length > listLimit) h += `<button class="more" id="more">${scope.length - listLimit}곳 더 보기</button>`;
+    h += `</div>`;
+    $("#pList").innerHTML = h; return;
+  }
+  const title = state.q ? `“${esc(state.q)}”` : esc(where) + (state.type ? ` · ${TYPE[state.type].label}` : "");
+  const showSync = sync.available && f.type === "home" && !state.q && !state.type;
+  h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}</span></div>`;
+  h += `<div class="seg" id="seg">
+    <button data-sort="default" class="${state.sort === "default" ? "on" : ""}">추천순</button>
+    <button data-sort="rating" class="${state.sort === "rating" ? "on" : ""}">별점순</button>
+    <button data-sort="near" class="${state.sort === "near" ? "on" : ""}">${state.me ? "가까운 순" : "📍 가까운 순"}</button></div>`;
+  const isHome = !state.q && !state.type && f.type === "home" && state.sort === "default";
+  if (isHome) {
+    if (state.me) {
+      const near = places.filter((p) => p.tags.length && !closedToday(p))
+        .map((p) => ({ p, s: km(state.me, p) * (1 - 0.35 * prefBoost(p)) }))
+        .sort((a, b) => a.s - b.s).slice(0, 6).map((x) => x.p);
+      if (near.length) h += `<div class="ghead">📍 지금 갈 만한 곳 · ${esc(state.me.label)} 근처 ${state.month}월 제철</div><div class="group">${near.map(rowHTML).join("")}</div>`;
+    } else {
+      h += `<button class="nearcta" id="nearCta"><span>📍</span><div><b>내 주변 지금 갈 만한 곳</b><small>현재 위치로 가까운 ${state.month}월 제철 맛집을 보여줘요</small></div><em>›</em></button>`;
+    }
+  }
+  if (!state.q && foods.some((x) => x.n)) {
+    h += `<div class="ghead">🔥 ${state.month}월 제철 음식 · 눌러서 가게 보기</div><div class="foodstrip">${foods.filter((x) => x.n).map(foodCard).join("")}</div>`;
+  }
+  const season = state.sort === "default" && !state.q ? scope.filter((p) => p.tags.length) : [];
+  const rest = scope.filter((p) => !season.includes(p));
+  if (season.length) h += `<div class="ghead">🔥 ${state.month}월 제철이라 지금 가볼 만한 곳</div><div class="group">${season.slice(0, 8).map(rowHTML).join("")}${season.length > 8 ? `<button class="more" data-season-all>제철 맛집 ${season.length}곳 모두 보기</button>` : ""}</div>`;
+  if (rest.length) {
+    const label = state.q ? "검색 결과" : state.sort === "near" ? `${esc(state.me.label)}에서 가까운 순` : state.sort === "rating" ? "별점 높은 순" : "저장한 곳";
+    h += `<div class="ghead">${label}</div><div class="group">${rest.slice(0, listLimit).map(rowHTML).join("")}`;
+    if (rest.length > listLimit) h += `<button class="more" id="more">${rest.length - listLimit}곳 더 보기</button>`;
+    h += `</div>`;
+  }
+  if (!scope.length) h += `<div class="group"><div class="empty">${state.q ? `저장한 곳 중에 “${esc(state.q)}” 파는 곳이 없어요.` : "이 조건에 맞는 곳이 없어요."}</div></div>`;
+  $("#pList").innerHTML = h;
+}
+function setFood(key) {
+  if (key && !state.food) history.pushState({ food: key }, "");
+  state.food = key; state.season = true; listLimit = 60;
+  refresh(); $("#pList").scrollTop = 0;
+}
+// ---------- 네이버 저장 목록 동기화 (dev_server.py 가 있을 때만 버튼이 보인다) ----------
+let sync = { available: false, running: false };
+const syncLabel = () => (sync.running ? "동기화 중…" : "↻ 동기화");
+function showSyncState() { const b = $("#syncBtn"); if (b) { b.textContent = syncLabel(); b.classList.toggle("busy", sync.running); } }
+async function syncPoll() {
+  let s;
+  try { const r = await fetch("/api/sync", { cache: "no-store" }); if (!r.ok) return; s = await r.json(); } catch { return; }
+  const wasRunning = sync.running, first = !sync.available;
+  sync = { available: true, running: s.running };
+  if (wasRunning && !s.running) { toast("동기화 끝 · 새 목록으로 다시 불러올게요"); setTimeout(() => location.reload(), 1200); return; }
+  if (first) renderList(); else showSyncState();
+  if (s.running) setTimeout(syncPoll, 3000);
+}
+async function startSync() {
+  if (sync.running) return toast("이미 동기화하고 있어요");
+  try {
+    const r = await fetch("/api/sync", { method: "POST", headers: { "X-Hanjeom": "sync" } });
+    if (!r.ok) throw new Error();
+  } catch { return toast("동기화를 시작하지 못했어요"); }
+  sync.running = true; showSyncState();
+  toast("네이버 저장 목록을 받아오는 중이에요. 새 가게가 많으면 몇 분 걸려요");
+  setTimeout(syncPoll, 3000);
+}
+$("#pList").addEventListener("click", (e) => {
+  if (e.target.id === "syncBtn") return startSync();
+  if (e.target.id === "more") { listLimit += 100; renderList(); return; }
+  if (e.target.closest("#nearCta")) return useGps();
+  const fd = e.target.closest("[data-food]"); if (fd) return setFood(state.food === fd.dataset.food ? null : fd.dataset.food);
+  if (e.target.id === "foodBack") { if (history.state && history.state.food) history.back(); else { state.food = null; refresh(); } return; }
+  if (e.target.closest("[data-season-all]")) { state.season = true; refresh(); $("#pList").scrollTop = 0; return; }
+  const s = e.target.closest("[data-sort]");
+  if (s) { if (s.dataset.sort === "near" && !state.me) return openLoc("near"); state.sort = s.dataset.sort; renderList(); return; }
+  const r = e.target.closest(".row"); if (r) select(places.find((p) => p.id === r.dataset.id));
+});
+
+// ---------- 상세 ----------
+function renderDetail(p) {
+  const t = p.tags, tr = transit(p), wk = p.wk;
+  const rating = p.rating ? (wk && wk.avgRating) || p.rating : null;
+  $("#pDetail").innerHTML = `
+    <div class="dbar"><button class="back" id="back">‹ 목록으로<small>Esc · 스와이프 · 브라우저 뒤로</small></button></div>
+    <div class="dname">${esc(p.name)}</div>
+    <div class="dsub">${esc(p.kind || p.cat || "음식점")} · ${esc(p.region)} ${esc(p.area || "")}${p.chain ? " · 체인·지점" : p.main ? " · 본점" : ""}</div>
+    ${(() => { const o = openInfo(p); return o.known ? `<div class="openrow ${o.closed ? "closed" : o.open ? "open" : ""}"><b>${o.closed ? "오늘 휴무" : o.inBreak ? "브레이크타임" : o.open ? "영업 중" : "영업 전·후"}</b><span>${esc(o.text)}</span></div>` : ""; })()}
+    <div class="visitbox">
+      <div class="visitrow">${(() => { const n = visitCount(p); return `<button class="visit ${n ? "on " + visitTier(n) : ""}" id="visitBtn">${n ? `${n >= 10 ? "★ " : ""}방문 ${n}회` : "방문 기록"}</button>${n ? `<small>마지막 ${esc(visits[p.id].at(-1))}</small><button class="undo" id="visitUndo">취소</button>` : `<small>기록하면 자주 가는 유형을 먼저 보여줘요</small>`}`; })()}</div>
+      <textarea class="memo" id="memo" rows="1" placeholder="메모" maxlength="300">${esc(notes[p.id] || "")}</textarea>
+    </div>
+    ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
+    ${rating || p.vr ? `<div class="stats">
+      ${rating ? `<div><b>★ ${rating.toFixed(2)}</b><small>${wk && wk.n > 1 ? `최근 ${Math.min(4, wk.n)}주 평균` : "별점"}</small></div>` : ""}
+      ${p.vr ? `<div><b>${p.vr.toLocaleString()}${wk && wk.newReviews > 0 ? `<em>+${wk.newReviews}</em>` : ""}</b><small>방문자 후기${wk && wk.newReviews > 0 ? " · 지난주 대비" : ""}</small></div>` : ""}
+      ${p.br ? `<div><b>${p.br.toLocaleString()}</b><small>블로그</small></div>` : ""}
+    </div>` : ""}
+    ${p.one ? `<div class="oneliner">“${esc(p.one)}”</div>` : ""}
+    ${tr ? `<div class="transit" id="transitBox"><span style="font-size:24px">${tr.how === "걸어서" ? "🚶" : tr.how === "기차·버스" ? "🚄" : "🚇"}</span><div><div class="big">약 ${fmtMin(tr.min)}</div><small>${esc(state.me.label)}에서 ${tr.how} · ${tr.km.toFixed(1)}km · 거리로 낸 대략값</small></div></div>`
+          : `<div class="transit ask"><span style="font-size:22px">🚇</span><div style="flex:1"><small>내 위치를 정하면 대중교통 시간이 나와요</small></div><button id="askLoc">위치 설정</button></div>`}
+    ${t.length ? `<div class="seasonhero"><small>${state.month}월 제철 메뉴</small><div>${t.map((x) => x.emoji + " " + esc(x.via.menu || x.via.review ? x.via.text : x.key)).join("  ")}</div><p>${esc(t[0].note)}${t[0].via.menu && t[0].via.menu.price ? " · " + esc(t[0].via.menu.price) : ""}${t[0].via.review ? ` · 후기 ${t[0].via.review.count}번 언급` : ""}</p>${t[0].tip ? `<p class="tip">${esc(t[0].tip)}</p>` : ""}</div>` : ""}
+    ${p.reviewMenus && p.reviewMenus.length ? `
+    <div class="ghead">👍 사람들이 추천하는 메뉴 · 후기 언급 수</div>
+    <div class="group bars">${(() => { const max = p.reviewMenus[0].count || 1; return p.reviewMenus.map((m, i) => `
+      <div class="bar"><span class="bn">${i === 0 ? "🥇 " : ""}${esc(m.name)}</span><span class="bt"><i style="--w:${Math.max(6, (m.count / max) * 100).toFixed(0)}%;--d:${i * 60}ms"></i></span><span class="bc">${m.count}</span></div>`).join(""); })()}
+    </div>` : ""}
+    ${p.menus && p.menus.length ? `
+    <div class="ghead">🍽️ 대표 메뉴</div>
+    <div class="group">${p.menus.map((m) => `
+      <div class="menu">${m.img ? `<img loading="lazy" src="${esc(m.img)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'noimg',textContent:'🍽️'}))">` : `<span class="noimg">🍽️</span>`}<span class="mn">${state.q ? hl(m.name) : esc(m.name)}</span><span class="mp">${esc(m.price || "")}</span></div>`).join("")}
+    </div>` : ""}
+    ${p.keywords && p.keywords.length ? `
+    <div class="ghead">이런 점이 좋았어요</div>
+    <div class="kwrap">${p.keywords.map((k) => `<span class="kw">${esc(k.name)} <b>${k.count}</b></span>`).join("")}</div>` : ""}
+    <div class="ghead">가게 정보</div>
+    <div class="group">
+      <div class="info"><span class="ii">🏠</span><div class="iv"><small>상호</small><div>${esc(p.name)}</div></div></div>
+      <div class="info"><span class="ii">📍</span><div class="iv"><small>주소</small><div>${esc(p.addr) || "-"}</div></div>${p.addr ? `<button class="copy" data-copy="${esc(p.addr)}">복사</button>` : ""}</div>
+      <div class="info"><span class="ii">📞</span><div class="iv"><small>전화번호${p.phoneSrc === "search" ? " · 네이버 검색 결과에서 찾은 번호" : ""}</small><div>${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : "정보 없음"}</div></div>${p.phone ? `<button class="copy" data-copy="${esc(p.phone)}">복사</button>` : ""}</div>
+    </div>
+    <div class="ghead" style="margin-top:-8px;padding-bottom:8px">${p.saved ? new Date(p.saved).toLocaleDateString("ko-KR") + " 저장" : ""}</div>`;
+  $("#back").onclick = () => select(null);
+  const ask = $("#askLoc"); if (ask) ask.onclick = () => openLoc();
+  if (tr) loadRealTransit(p);
+  fitMemo();
+}
+function fitMemo() { const m = $("#memo"); if (m) { m.style.height = "auto"; m.style.height = m.scrollHeight + "px"; } }
+$("#pDetail").addEventListener("input", (e) => {
+  if (e.target.id !== "memo" || !state.selected) return;
+  const v = e.target.value.trim();
+  if (v) notes[state.selected.id] = e.target.value; else delete notes[state.selected.id];
+  store.set("notes", notes); fitMemo();
+});
+$("#pDetail").addEventListener("click", async (e) => {
+  if (e.target.id === "visitBtn" && state.selected) { markVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); toast("✓ 방문 기록했어요"); return; }
+  if (e.target.id === "visitUndo" && state.selected) { undoVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); return; }
+  const c = e.target.closest("[data-copy]"); if (!c) return;
+  try { await navigator.clipboard.writeText(c.dataset.copy); toast("복사했어요"); } catch { toast("복사하지 못했어요"); }
+});
+function select(p, fromHistory) {
+  const prev = state.selected; state.selected = p;
+  if (!fromHistory) {
+    if (p && !prev) history.pushState({ detail: p.id }, "");
+    else if (p && prev) history.replaceState({ detail: p.id }, "");
+    else if (!p && prev && history.state && history.state.detail) { history.back(); }
+  }
+  if (p) {
+    renderDetail(p);
+    $("#pList").classList.add("left"); $("#pDetail").classList.remove("right"); $("#pDetail").scrollTop = 0;
+    if (!(state.focus.type === "area" && state.focus.area === p.area && state.focus.prov === p.region)) {
+      setFocusKeep({ type: "area", prov: p.region, area: p.area });
+    }
+    cam.lng.t = p.lng; cam.lat.t = p.lat;
+    snap("half");
+  } else {
+    $("#pList").classList.remove("left"); $("#pDetail").classList.add("right");
+  }
+  if (prev !== p) stylePins();
+  kick();
+}
+function setFocusKeep(f) { const s = state.selected; setFocus(f); state.selected = s; }
+
+// 뒤로 가기: 브라우저 뒤로/아이폰 가장자리 스와이프, Esc, 상세 화면에서 오른쪽으로 쓸기
+addEventListener("popstate", (e) => {
+  const id = e.state && e.state.detail;
+  if (id) return select(places.find((x) => x.id === id) || null, true);
+  if (state.selected) select(null, true);
+  const food = e.state && e.state.food;
+  if ((food || null) !== state.food) { state.food = food || null; refresh(); }
+});
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if ($("#locModal").classList.contains("on")) return closeLoc();
+  if (state.selected) return select(null);
+  if (state.food) { state.food = null; return refresh(); }
+  if (state.focus.type !== "home") $("#crumb").click();
+});
+(() => {
+  const pg = $("#pDetail"); let sx = null, sy = 0;
+  pg.addEventListener("touchstart", (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  pg.addEventListener("touchmove", (e) => {
+    if (sx == null) return;
+    const dx = e.touches[0].clientX - sx, dy = Math.abs(e.touches[0].clientY - sy);
+    if (dy > 40) { sx = null; pg.style.transform = ""; return; }
+    if (dx > 0) { pg.style.transition = "none"; pg.style.transform = `translateX(${dx}px)`; }
+  }, { passive: true });
+  pg.addEventListener("touchend", (e) => {
+    if (sx == null) return;
+    const dx = e.changedTouches[0].clientX - sx; sx = null;
+    pg.style.transition = ""; pg.style.transform = "";
+    if (dx > 80) select(null);
+  });
+})();
+
+// ---------- 지도 확대/축소·이동 ----------
+function setZoom(z, x, y, instant) {
+  z = Math.min(12, Math.max(1, z));
+  x = Math.min(0, Math.max(view.W * (1 - z), x));
+  y = Math.min(0, Math.max(view.H * (1 - z), y));
+  for (const [s, v] of [[uz.z, z], [uz.x, x], [uz.y, y]]) { s.t = v; if (instant) { s.v = v; s.vel = 0; } }
+  $("#zoomReset").classList.toggle("on", z > 1.02);
+  kick();
+}
+function zoomAt(cx, cy, factor, instant) {   // 화면의 (cx, cy) 지점을 붙잡은 채 배율만 바꾼다
+  const z0 = uz.z.t, z1 = Math.min(12, Math.max(1, z0 * factor)), k = z1 / z0;
+  setZoom(z1, cx - (cx - uz.x.t) * k, cy - (cy - uz.y.t) * k, instant);
+}
+svg.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect();
+  zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)));
+}, { passive: false });
+$("#zoomReset").onclick = () => setZoom(1, 0, 0);
+
+// ---------- 지도 탭 (손가락 하나: 탭·드래그, 둘: 핀치) ----------
+const ptrs = new Map();
+let down = null, moved = false;
+svg.addEventListener("pointerdown", (e) => {
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 1) { down = { x: e.clientX, y: e.clientY }; moved = false; } else moved = true;
+});
+svg.addEventListener("pointermove", (e) => {
+  const prev = ptrs.get(e.pointerId); if (!prev) return;
+  const r = svg.getBoundingClientRect();
+  if (ptrs.size === 1) {
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) moved = true;
+    if (moved && uz.z.t > 1) setZoom(uz.z.t, uz.x.t + e.clientX - prev.x, uz.y.t + e.clientY - prev.y, true);
+  } else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    const other = a === prev ? b : a;
+    const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+    const mx0 = (prev.x + other.x) / 2, my0 = (prev.y + other.y) / 2, mx1 = (e.clientX + other.x) / 2, my1 = (e.clientY + other.y) / 2;
+    setZoom(uz.z.t, uz.x.t + mx1 - mx0, uz.y.t + my1 - my0, true);
+    if (d0 > 0) zoomAt(mx1 - r.left, my1 - r.top, d1 / d0, true);
+  }
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+});
+const endPtr = (e) => ptrs.delete(e.pointerId);
+svg.addEventListener("pointercancel", (e) => { endPtr(e); moved = true; });
+svg.addEventListener("pointerup", (e) => {
+  endPtr(e);
+  if (!down || moved || ptrs.size) return;
+  const r = svg.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const t0el = document.elementFromPoint(e.clientX, e.clientY);
+  // 전국 화면에서 탭은 도 선택. 단, 직접 확대해 둔 상태면 핀을 고른다
+  if (state.focus.type === "home" && uz.z.t < 1.5 && t0el && t0el.dataset.prov) { select(null); return setFocus({ type: "prov", prov: t0el.dataset.prov }); }
+  let best = null, bd = 18;
+  for (const p of places) {
+    if (!p.on) continue;
+    const d = Math.hypot(p.x - x, p.y - y) - (p.tags.length ? 3 : 0);
+    if (d < bd) { bd = d; best = p; }
+  }
+  if (best) return select(best);
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  if (t && t.dataset.area) { select(null); return setFocus({ type: "area", prov: t.dataset.prov, area: t.dataset.area }); }
+  if (t && t.dataset.prov) { select(null); return setFocus({ type: "prov", prov: t.dataset.prov }); }
+  if (state.selected) select(null);
+});
+
+// ---------- 내 위치 ----------
+let locAfter = null;
+function openLoc(after) { locAfter = after || null; $("#locMsg").textContent = ""; $("#locInput").value = ""; $("#locModal").classList.add("on"); setTimeout(() => $("#locInput").focus(), 300); }
+function closeLoc() { $("#locModal").classList.remove("on"); }
+function setMe(me, quiet) {
+  state.me = me; store.set("me", me);
+  $("#locTxt").textContent = me ? me.label : "내 위치";
+  $("#locBtn").classList.toggle("on", !!me);
+  if (me && locAfter === "near") state.sort = "near";
+  if (!me && state.sort === "near") state.sort = "default";
+  closeLoc(); renderList(); if (state.selected) renderDetail(state.selected); kick();
+  if (me && !quiet) toast(`📍 ${me.label} 기준으로 계산할게요`);
+}
+$("#locBtn").onclick = () => openLoc();
+$("#locDim").onclick = closeLoc;
+$("#locClear").onclick = () => setMe(null);
+function useGps(silent) {
+  if (!navigator.geolocation) { if (!silent) openLoc(); return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { const keep = state.me && state.me.label !== "현재 위치"; if (!keep || !silent) setMe({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: "현재 위치" }, silent); },
+    () => { if (!silent) { openLoc(); $("#locMsg").textContent = "위치 권한이 없어요. 직접 입력해 주세요."; } },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+}
+$("#locGps").onclick = () => {
+  if (!navigator.geolocation) return ($("#locMsg").textContent = "이 브라우저는 위치를 지원하지 않아요.");
+  $("#locMsg").textContent = "위치 확인 중…";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => setMe({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: "현재 위치" }),
+    () => ($("#locMsg").textContent = "위치 권한이 없어요. 아래에 직접 입력해 주세요."),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+};
+async function geocode(text) {
+  const t = text.trim(); if (!t) return null;
+  // 1) 저장한 가게 이름
+  const own = places.find((p) => p.name.includes(t));
+  if (own) return { lat: own.lat, lng: own.lng, label: t };
+  // 2) 시군구 이름
+  const m = munis.find((x) => x.name === t || x.name.startsWith(t));
+  if (m) return { lat: m.c[1], lng: m.c[0], label: t };
+  // 3) 동네/주소/역: 저장한 가게 주소에 나오면 그 평균 위치
+  const near = places.filter((p) => p.addr.includes(t));
+  if (near.length) return { lat: near.reduce((s, p) => s + p.lat, 0) / near.length, lng: near.reduce((s, p) => s + p.lng, 0) / near.length, label: t };
+  // 4) 그래도 없으면 OpenStreetMap 검색 (입력한 글자만 보냄)
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&accept-language=ko&q=${encodeURIComponent(t)}`;
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  const j = await r.json();
+  if (j && j[0]) return { lat: +j[0].lat, lng: +j[0].lon, label: t };
+  return null;
+}
+async function submitLoc() {
+  $("#locMsg").textContent = "찾는 중…";
+  try {
+    const g = await geocode($("#locInput").value);
+    if (g) setMe(g); else $("#locMsg").textContent = "못 찾았어요. 역 이름이나 동 이름으로 다시 해볼까요?";
+  } catch { $("#locMsg").textContent = "검색에 실패했어요. 인터넷 연결을 확인해 주세요."; }
+}
+$("#locGo").onclick = submitLoc;
+$("#locInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitLoc(); });
+
+// ---------- 레이아웃: 지도 영역 크기에 맞춰 그린다 ----------
+let cur = "full";
+function snap() {}               // (예전 바텀시트용, 지금은 목록이 따로 있어서 할 일 없음)
+function layout() {
+  const r = $("#mapWrap").getBoundingClientRect();
+  view = { W: r.width, H: r.height, top: 0, bottom: r.height };
+  svg.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`);
+  kick();
+}
+new ResizeObserver(layout).observe($("#mapWrap"));
+
+// ---------- 토스트 ----------
+let tt = 0;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("on"), 2200); }
+
+// ---------- 시작 ----------
+addEventListener("resize", layout);
+$("#mTxt").textContent = state.month + "월";
+if (state.me) { $("#locTxt").textContent = state.me.label; $("#locBtn").classList.add("on"); }
+refresh(); layout();
+syncPoll();
+// 첫 화면 '내 주변 지금 갈 만한 곳': 위치 권한을 이미 줬으면 바로 현재 위치로
+try {
+  navigator.permissions && navigator.permissions.query({ name: "geolocation" }).then((r) => { if (r.state === "granted") useGps(true); }).catch(() => {});
+} catch {}
+setTimeout(() => { const n = places.filter((p) => p.tags.length).length; if (n) toast(`🔥 ${state.month}월 제철 맛집 ${n}곳`); }, 2200);
+})();
+</script>
+</body>
+</html>
