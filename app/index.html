@@ -1327,14 +1327,6 @@ function renderDetail(p) {
     <div class="group bars">${(() => { const max = p.reviewMenus[0].count || 1; return p.reviewMenus.map((m, i) => `
       <div class="bar"><span class="bn">${i === 0 ? "🥇 " : ""}${esc(m.name)}</span><span class="bt"><i style="--w:${Math.max(6, (m.count / max) * 100).toFixed(0)}%;--d:${i * 60}ms"></i></span><span class="bc">${m.count}</span></div>`).join(""); })()}
     </div>` : ""}
-    ${p.menus && p.menus.length ? `
-    <div class="ghead">🍽️ 대표 메뉴</div>
-    <div class="group">${p.menus.map((m) => `
-      <div class="menu">${m.img ? `<img loading="lazy" src="${esc(m.img)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'noimg',textContent:'🍽️'}))">` : `<span class="noimg">🍽️</span>`}<span class="mn">${state.q ? hl(m.name) : esc(m.name)}</span><span class="mp">${esc(m.price || "")}</span></div>`).join("")}
-    </div>` : ""}
-    ${p.keywords && p.keywords.length ? `
-    <div class="ghead">이런 점이 좋았어요</div>
-    <div class="kwrap">${p.keywords.map((k) => `<span class="kw">${esc(k.name)} <b>${k.count}</b></span>`).join("")}</div>` : ""}
     <div class="ghead">가게 정보</div>
     <div class="group">
       <div class="info"><span class="ii">🏠</span><div class="iv"><small>상호</small><div>${esc(p.name)}</div></div></div>
