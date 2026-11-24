@@ -56,8 +56,21 @@ def main():
     for step in ("collect_naver.py", "fill_phones.py", "build_data.py"):
         print(f"== {step}", flush=True)
         subprocess.run([sys.executable, "-I", "-X", "utf8", str(ROOT / "scripts" / step)], check=False)
-    subprocess.run(["bash", (ROOT / "scripts" / "publish.sh").as_posix()], check=False)  # 저장소 연결돼 있으면 배포
+    publish()
     print("동기화 끝", flush=True)
+
+
+def publish():
+    """바뀐 지도 데이터(app/)만 GitHub 에 올린다 → Actions 가 Pages 로 배포. 원격 저장소가 없으면 건너뜀."""
+    git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if git("remote", "get-url", "origin").returncode != 0:
+        return print("publish: origin 없음, 건너뜀", flush=True)
+    git("add", "app")
+    if git("diff", "--cached", "--quiet", "--", "app").returncode == 0:
+        return print("publish: 바뀐 것 없음", flush=True)
+    c = git("commit", "-m", f"데이터 갱신 {time.strftime('%Y-%m-%d')} (동기화)", "--", "app")
+    p = git("push", "origin", "HEAD:main") if c.returncode == 0 else c
+    print("publish: 올림" if p.returncode == 0 else f"publish 실패: {(p.stderr or p.stdout).strip()[:200]}", flush=True)
 
 
 if __name__ == "__main__":

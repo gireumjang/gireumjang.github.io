@@ -13,7 +13,8 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 
 - 정적 파일만 필요하면 아무 서버나 되지만, 대중교통 실제 시간(/api/transit)과 동기화 버튼(/api/sync)은 dev_server.py 에서만 동작한다.
 - Python 3 + curl 필요. 외부 패키지 없음.
-- 작업 PC는 2026-11-24부터 Windows (그 전엔 맥). Git Bash의 `bash`로 publish.sh 실행.
+- 작업 PC는 2026-11-24부터 Windows (그 전엔 맥). 배포 push는 `sync.py`의 `publish()`가 git을 직접 부른다 (서버가 띄운 프로세스에선 `bash`가 WSL로 잡혀 셸 스크립트가 안 돌았음).
+- PC 전용 비밀 파일(저장소 밖, `data/`): `shares.json`(네이버 공유 폴더 ID), `supabase.json`(url + `sb_secret_` 키, 폰 동기화 처리용). 새 PC로 옮길 때 같이 가져올 것.
 
 ## 구조
 
@@ -25,13 +26,13 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 | `app/dong/{도 코드}.json` | `build_dong.py` 가 만드는 행정동 경계·이름 (도별 17개, 합계 약 5MB). 시·군·구를 눌렀을 때 그 도 파일만 받는다 |
 | `scripts/build_dong.py` | `data/geo_raw/HangJeongDong_ver*.geojson`(가장 최신) → `app/dong/`. 지도의 시·군·구 자료가 예전 경계라 이름 대신 동 중심점 위치로 묶음 |
 | `app/config.js` | 배포용 설정 (`transitProxy`) |
-| `scripts/sync.py` | '지금 동기화': 저장 목록(raw) 다시 받기 → 새 가게·실패했던 가게만 수집 → 전화 보강 → 빌드 → publish |
+| `scripts/sync.py` | '지금 동기화': 저장 목록(raw) 다시 받기 → 새 가게·실패했던 가게만 수집 → 전화 보강 → 빌드 → `publish()`(app/ 바뀐 것만 커밋·push → 자동 배포) |
 | `scripts/collect_naver.py` | 저장 가게마다 네이버 플레이스 홈 1페이지 → `data/naver/{sid}.json` (메뉴·가격·후기 요약·키워드·별점·영업시간). 기본은 아직 안 받은 곳만, `--refresh`면 전부 |
 | `scripts/fill_phones.py` | 전화번호 없는 곳을 네이버 검색 결과에서 보강 (도로명+건물번호가 번호 옆에 있을 때만, 30일에 1번) |
 | `scripts/classify.py` | 유형 19종 분류 (업종 + 대표 메뉴) |
 | `scripts/build_data.py` | raw + naver + geo → `app/*.js` |
 | `scripts/dev_server.py` | 로컬 서버 + 네이버 대중교통 경로 중계 + 동기화 실행·진행 조회 |
-| `scripts/publish.sh` | app/ 변경분을 GitHub에 push (origin 있을 때만) |
+| `supabase/schema.sql` | Supabase 테이블·RLS·권한 (`kv`: 방문 기록·메모, `sync_requests`: 폰 동기화 요청). SQL Editor에서 다시 실행해도 안전 |
 | `scripts/com.matjip.weekly.plist` | 예전 맥의 주간 자동 수집 설정. 더 안 씀 |
 | `supabase/functions/transit` | 배포 후 대중교통 중계 (dev_server의 /api/transit 과 같은 일) |
 | `.github/workflows/pages.yml` | app/ → GitHub Pages 배포 |
@@ -79,9 +80,10 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 
 - [x] **배포 완료 (2026-11-24):** https://msroe84-web.github.io/hanjeom/ ← 저장소 https://github.com/msroe84-web/hanjeom (공개, main). `app/` 이나 워크플로가 바뀐 push 때마다 GitHub Actions가 자동 배포. 액션은 upload-pages-artifact@v5 + deploy-pages@v5 짝, 올리기(build)·게시(deploy)는 반드시 다른 job (한 job이면 'No artifacts named github-pages'로 자주 실패)
   - 공개 저장소라 개인 정보 주의: 네이버 공유 폴더 ID·닉네임은 올리지 않음(ID는 `data/shares.json`), 옛 plist는 .gitignore
-- [ ] Supabase 무료 프로젝트: `transit` 함수 배포 → `app/config.js` 의 `transitProxy` 설정, `ALLOW_ORIGIN` 에 Pages 주소
-- [ ] 방문 기록·메모를 Supabase에 저장 (기기 상관없이 같게, 친구에겐 안 보이게). 지금은 localStorage라 기기마다 다름
-- [ ] 폰에서 동기화: 배포 사이트에서 버튼을 누르면 Supabase에 요청을 남기고, 데스크탑 dev_server가 켜질 때 처리 (지금 버튼은 로컬에서만 보임)
+- [x] **Supabase 연결 (2026-11-24):** 프로젝트 `oenmrkgudxjdenegjibj` (서울). 로그인은 이메일+비밀번호(메일 템플릿은 SMTP 없이 못 고쳐서 OTP 코드 방식 포기), 이메일 확인 끔, 새 가입 막음(계정 1개). 목록 위 '☁︎ 로그인' 버튼
+  - 방문 기록·메모: `kv` 테이블. 기기에서 처음 로그인할 때만 기존 기록과 합치고(방문은 가게별 더 많은 쪽, 메모는 합침), 그다음부턴 클라우드 기준. 로그인 안 하면 예전처럼 localStorage만
+  - 폰 동기화: 로컬 서버가 없으면 동기화 버튼이 `sync_requests`에 요청 → PC dev_server가 1분마다 확인해 처리(시험: 104초에 완료). 이 프로젝트는 새 테이블 권한을 자동으로 안 줘서 schema.sql에 grant 필요
+- [ ] Supabase `transit` 함수 배포 (대시보드 Edge Functions에서 코드 붙여넣기, Verify JWT 끄기, 비밀값 `ALLOW_ORIGIN=https://msroe84-web.github.io`) → `app/config.js`의 `transitProxy`
 - [ ] 약속·투표: 출발지 모이면 이동시간 합 최소 3곳 자동 추천 → 전원 투표 시 자동 마감 → 같은 링크가 결과 화면 (Supabase 테이블)
 - [ ] 아이폰 화면에서 핀이 빽빽함 → 모바일만 핀 크기 축소 검토
 
