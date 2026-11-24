@@ -978,9 +978,9 @@ $("#authOut").onclick = async () => { await sb.auth.signOut(); closeAuth(); toas
 
 // ---------- 실제 대중교통 (네이버 경로, 중계 서버 경유) ----------
 function transitProxy() {
-  const c = window.HANJEOM_CONFIG || {};
-  if (c.transitProxy) return c.transitProxy;
-  return /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "/api/transit" : null;
+  // 로컬은 dev_server.py 중계, 배포 사이트는 Supabase 함수 (함수는 내 사이트 주소에서 온 요청만 받는다)
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return "/api/transit";
+  return (window.HANJEOM_CONFIG || {}).transitProxy || null;
 }
 const realCache = new Map();
 async function loadRealTransit(p) {
