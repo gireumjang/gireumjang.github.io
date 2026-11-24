@@ -24,6 +24,7 @@ sync_lock = threading.Lock()
 sync_proc = None
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 COORD = re.compile(r"^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$")
+WHEN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")  # 출발 시각 (한국 시간, 약속용)
 
 
 def summarize(d):
@@ -55,9 +56,11 @@ def summarize(d):
     }
 
 
-def naver_transit(start, goal):
-    url = ("https://map.naver.com/p/api/directions/pubtrans?" +
-           urllib.parse.urlencode({"start": start, "goal": goal, "crs": "EPSG:4326", "mode": "TIME", "lang": "ko"}))
+def naver_transit(start, goal, when=None):
+    q = {"start": start, "goal": goal, "crs": "EPSG:4326", "mode": "TIME", "lang": "ko"}
+    if when:
+        q["departureTime"] = when
+    url = "https://map.naver.com/p/api/directions/pubtrans?" + urllib.parse.urlencode(q)
     r = subprocess.run(["curl", "-s", "--max-time", "12", "-A", UA, "-H", "Referer: https://map.naver.com/", url],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     return summarize(json.loads(r.stdout))
@@ -142,8 +145,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             start, goal = (q.get("start") or [""])[0], (q.get("goal") or [""])[0]
             if not (COORD.match(start) and COORD.match(goal)):
                 return self._json(400, {"ok": False, "error": "start/goal = lng,lat"})
+            when = (q.get("time") or [""])[0]
             try:
-                return self._json(200, naver_transit(start, goal))
+                return self._json(200, naver_transit(start, goal, when if WHEN.match(when) else None))
             except Exception as e:  # noqa: BLE001
                 return self._json(502, {"ok": False, "error": type(e).__name__})
         return super().do_GET()

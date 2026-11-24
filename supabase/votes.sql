@@ -32,6 +32,9 @@ create table if not exists public.vote_people (
 );
 -- 먹고 싶은 것 (검색어, 비우면 저장한 곳 전체에서 고름)
 alter table public.votes add column if not exists want text check (want is null or char_length(want) between 1 and 20);
+-- 약속 날짜·시간 (그날 쉬는 곳은 후보에서 빼고, 그 시간에 맞춰 경로 계산), 다시 뽑기로 뺀 가게들
+alter table public.votes add column if not exists meet_at timestamptz;
+alter table public.votes add column if not exists skip text[] not null default '{}';
 create index if not exists vote_people_vote on public.vote_people (vote_id);
 alter table public.votes enable row level security;
 alter table public.vote_people enable row level security;
@@ -41,7 +44,7 @@ revoke all on public.votes, public.vote_people from anon, authenticated;
 create or replace function public.vote_json(v public.votes) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
-    'id', v.id, 'title', v.title, 'want', v.want, 'size', v.size, 'status', v.status,
+    'id', v.id, 'title', v.title, 'want', v.want, 'meet_at', v.meet_at, 'skip', to_jsonb(v.skip), 'size', v.size, 'status', v.status,
     'computing_stale', v.status = 'computing' and v.compute_at < now() - interval '2 minutes',
     'candidates', v.candidates, 'winner', v.winner, 'created_at', v.created_at, 'closed_at', v.closed_at,
     'is_owner', v.owner = auth.uid(),
@@ -59,18 +62,19 @@ $$;
 
 -- 만들기: 로그인한 사람만
 drop function if exists public.create_vote(text, int);
-create or replace function public.create_vote(p_title text, p_size int, p_want text default null) returns text
+drop function if exists public.create_vote(text, int, text);
+create or replace function public.create_vote(p_title text, p_size int, p_want text default null, p_meet_at timestamptz default null) returns text
 language plpgsql security definer set search_path = public as $$
 declare vid text;
 begin
   if auth.uid() is null then raise exception 'login_required'; end if;
-  insert into public.votes (owner, title, size, want) values (auth.uid(), trim(p_title), p_size, nullif(trim(coalesce(p_want, '')), '')) returning id into vid;
+  insert into public.votes (owner, title, size, want, meet_at) values (auth.uid(), trim(p_title), p_size, nullif(trim(coalesce(p_want, '')), ''), p_meet_at) returning id into vid;
   return vid;
 end $$;
 
 create or replace function public.my_votes() returns jsonb
 language sql stable security definer set search_path = public as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', v.id, 'title', v.title, 'want', v.want, 'size', v.size, 'status', v.status,
+  select coalesce(jsonb_agg(jsonb_build_object('id', v.id, 'title', v.title, 'want', v.want, 'meet_at', v.meet_at, 'size', v.size, 'status', v.status,
            'created_at', v.created_at, 'n', (select count(*) from public.vote_people p where p.vote_id = v.id)) order by v.created_at desc), '[]'::jsonb)
   from (select * from public.votes where owner = auth.uid() order by created_at desc limit 20) v;
 $$;
@@ -161,6 +165,19 @@ begin
   return public.get_vote(p_id);
 end $$;
 
+-- 만든 사람만: 지금 후보 3곳을 빼고 다시 뽑기 (투표는 지워짐). 다 모인 상태로 돌아가면 참여자 기기가 다시 계산한다
+create or replace function public.reroll(p_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.votes v set
+      skip = (v.skip || coalesce((select array_agg(c->>'id') from jsonb_array_elements(v.candidates) c), '{}'))[1:90],
+      candidates = null, status = 'gather', compute_at = null
+    where v.id = p_id and v.owner = auth.uid() and v.status = 'voting';
+  if not found then raise exception 'not_allowed'; end if;
+  update public.vote_people set choice = null, voted_at = null where vote_id = p_id;
+  return public.get_vote(p_id);
+end $$;
+
 -- 만든 사람만: 안 한 사람은 빼고 지금까지 들어온 표로 마감 (1표 이상 있어야)
 create or replace function public.close_now(p_id text) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -174,14 +191,14 @@ end $$;
 
 -- 함수는 기본으로 누구나(PUBLIC) 부를 수 있게 만들어지므로 먼저 막고 필요한 것만 연다
 revoke execute on function public.vote_json(public.votes), public.finish_vote(text) from public, anon, authenticated;
-revoke execute on function public.get_vote(text), public.create_vote(text, int, text), public.my_votes(),
+revoke execute on function public.get_vote(text), public.create_vote(text, int, text, timestamptz), public.my_votes(),
   public.join_vote(text, text, text, double precision, double precision),
   public.leave_vote(text, bigint, uuid),
-  public.start_now(text), public.close_now(text), public.claim_compute(text), public.save_candidates(text, jsonb),
+  public.start_now(text), public.close_now(text), public.reroll(text), public.claim_compute(text), public.save_candidates(text, jsonb),
   public.cast_vote(text, bigint, uuid, text) from public;
 grant usage on schema public to anon, authenticated;
 grant execute on function public.get_vote(text), public.join_vote(text, text, text, double precision, double precision),
   public.leave_vote(text, bigint, uuid),
   public.claim_compute(text), public.save_candidates(text, jsonb), public.cast_vote(text, bigint, uuid, text)
   to anon, authenticated;
-grant execute on function public.create_vote(text, int, text), public.my_votes(), public.start_now(text), public.close_now(text) to authenticated;
+grant execute on function public.create_vote(text, int, text, timestamptz), public.my_votes(), public.start_now(text), public.close_now(text), public.reroll(text) to authenticated;

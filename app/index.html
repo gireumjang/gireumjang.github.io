@@ -370,6 +370,12 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .vcta { background: rgba(255,149,0,.13); }
 .vwanthint { font-size: 13px; color: var(--label2); min-height: 18px; margin: 6px 4px 0; }
 .vwanthint.none { color: var(--season); }
+.whenrow { display: flex; align-items: center; gap: 10px; height: 50px; margin-top: 8px; padding: 0 8px 0 14px; border-radius: 12px; background: var(--cell); font-size: 17px; }
+.whenrow span { flex: none; }
+.whenrow input { flex: 1; min-width: 0; height: 40px; text-align: right; font-size: 16px; color: var(--pin); background: none; outline: none; }
+.vchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.vchips .vwant { margin: 0; }
+.vwant.when { background: rgba(0,122,255,.12); color: var(--pin); }
 .vwant { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 12px; padding: 5px 11px; border-radius: 999px; background: var(--season-soft); color: var(--season); font-size: 14px; font-weight: 600; }
 .vpage { position: fixed; inset: 0; z-index: 25; display: none; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg); overscroll-behavior: contain; }
 .vpage.on { display: block; animation: up .45s cubic-bezier(.32,.72,0,1) both; }
@@ -517,6 +523,8 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
     <div class="field"><input id="vTitle" placeholder="약속 이름 (예: 12월 송년회)" maxlength="40" enterkeyhint="done"></div>
     <div class="field" style="margin-top:8px"><input id="vWant" placeholder="먹고 싶은 것 (예: 도루묵) · 비우면 전체" maxlength="20" enterkeyhint="done"></div>
     <div class="vwanthint" id="vWantHint"></div>
+    <label class="whenrow"><span>언제</span><input id="vWhen" type="datetime-local" step="1800"></label>
+    <div class="vwanthint">그날 쉬는 곳은 빼고, 그 시간에 맞춰 이동시간을 계산해요</div>
     <div class="stepper"><span>모일 인원 (나 포함)</span><div><button id="vMinus" aria-label="한 명 줄이기">−</button><b id="vSize">4명</b><button id="vPlus" aria-label="한 명 늘리기">+</button></div></div>
     <div class="msg" id="vNewMsg"></div>
     <button class="bigbtn primary" id="vCreate">링크 만들기</button>
@@ -1151,13 +1159,13 @@ function transitProxy() {
 }
 const realCache = new Map();
 // from{lat,lng} → 가게 p 실제 경로. { r, fresh }: fresh 는 이번에 네이버에 새로 물어봤는지 (간격 두기용)
-async function realRoute(from, p) {
+async function realRoute(from, p, when) {
   const proxy = transitProxy(); if (!proxy) return { r: { ok: false }, fresh: false };
-  const key = `${from.lng.toFixed(4)},${from.lat.toFixed(4)}>${p.id}`;
+  const key = `${from.lng.toFixed(4)},${from.lat.toFixed(4)}>${p.id}${when ? "@" + when : ""}`;
   let r = realCache.get(key);
   if (r) return { r, fresh: false };
   try {
-    const res = await fetch(`${proxy}?start=${from.lng.toFixed(6)},${from.lat.toFixed(6)}&goal=${p.lng},${p.lat}`);
+    const res = await fetch(`${proxy}?start=${from.lng.toFixed(6)},${from.lat.toFixed(6)}&goal=${p.lng},${p.lat}${when ? `&time=${when}` : ""}`);
     r = await res.json();
   } catch { r = { ok: false }; }
   realCache.set(key, r);
@@ -1606,6 +1614,19 @@ const myEntry = (d) => { const m = store.get(`vote:${d.id}`); return m && d.peop
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const voteOn = () => $("#votePage").classList.contains("on");
 // 먹고 싶은 것: 앱 검색과 같은 방식 (가게 이름·메뉴·후기 메뉴·키워드, 띄어 쓴 말은 모두 들어가야)
+// 약속 시각: 화면용 글자, 네이버 출발 시각(한국 시간 'YYYY-MM-DDTHH:MM:00')
+const fmtWhen = (iso) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "short", hour: "numeric", minute: "2-digit" });
+const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 19);
+// 그날 그 시간에 문을 여는지 (영업시간 모르는 곳은 연 걸로 친다)
+const openAt = (p, iso) => { const o = openInfo(p, new Date(iso)); return !o.known || (!o.closed && o.open); };
+// 후보로 삼을 가게: 먹고 싶은 것 → 다시 뽑기로 뺀 곳 제외 → 약속 시간에 연 곳 (모자라면 영업시간은 무시)
+function votePool(d) {
+  const skip = new Set(d.skip || []);
+  const base = (d.want && wantPlaces(d.want).length ? wantPlaces(d.want) : places).filter((p) => !skip.has(p.id));
+  if (!d.meet_at) return base;
+  const open = base.filter((p) => openAt(p, d.meet_at));
+  return open.length >= 3 ? open : base;
+}
 const wantPlaces = (want) => { const ws = String(want || "").toLowerCase().split(/\s+/).filter(Boolean); return ws.length ? places.filter((p) => ws.every((w) => p.hay.includes(w))) : places; };
 
 function openVote(id) { history.pushState({ vote: id }, "", `#v=${id}`); showVote(id); }
@@ -1656,14 +1677,17 @@ async function maybeCompute() {
 async function computeCandidates(d) {
   const ppl = d.people;
   // 1) (먹고 싶은 것을 파는 곳 중) 거리로 낸 대략 시간 합 → 6곳만 남김
-  const pool = (d.want && wantPlaces(d.want).length ? wantPlaces(d.want) : places).map((p) => ({ p, sum: ppl.reduce((s, u) => s + estimate(u, p).min, 0) })).sort((a, b) => a.sum - b.sum).slice(0, 6);
+  const pool = votePool(d).map((p) => ({ p, sum: ppl.reduce((s, u) => s + estimate(u, p).min, 0) })).sort((a, b) => a.sum - b.sum).slice(0, 6);
+  if (!pool.length) throw new Error("no_places");
   // 2) 그 6곳만 실제 대중교통 경로 (네이버에 새로 물을 때마다 0.6초 쉼)
   const total = pool.length * ppl.length; let done = 0;
   VS.prog = { done, total }; renderVote(true);
   for (const c of pool) {
     c.times = {};
     for (const u of ppl) {
-      const { r, fresh } = await realRoute(u, c.p);
+      // 약속 시간이 있으면 그 시간에 도착하도록 (대략 걸리는 시간 + 5분 전에 출발)
+      const when = d.meet_at ? kst(new Date(d.meet_at).getTime() - (estimate(u, c.p).min + 5) * 60e3) : null;
+      const { r, fresh } = await realRoute(u, c.p, when);
       c.times[u.pid] = r.ok && r.min ? { min: r.min, real: true } : { min: estimate(u, c.p).min, real: false };
       VS.prog = { done: ++done, total }; renderVote(true);
       if (fresh) await sleep(600);
@@ -1720,7 +1744,7 @@ function renderVote(progOnly) {
   const sub = d.status === "gather" ? `${n}/${d.size}명 모였어요` : d.status === "computing" ? "후보를 고르고 있어요"
     : d.status === "voting" ? `${d.people.filter((u) => u.voted).length}/${n}명 투표했어요` : "투표가 끝났어요";
   let h = `<div class="vbar dbar"><button class="back" id="vClose">‹ 지도로</button></div>
-    <div class="vtitle">🍻 ${esc(d.title)}</div><div class="vsub">${sub}</div>${d.want ? `<div class="vwant">🍴 ${esc(d.want)} 먹으러 가요</div>` : ""}`;
+    <div class="vtitle">🍻 ${esc(d.title)}</div><div class="vsub">${sub}</div>${d.want || d.meet_at ? `<div class="vchips">${d.meet_at ? `<span class="vwant when">📅 ${esc(fmtWhen(d.meet_at))}</span>` : ""}${d.want ? `<span class="vwant">🍴 ${esc(d.want)} 먹으러 가요</span>` : ""}</div>` : ""}`;
   if (d.status === "gather") {
     h += `<div class="vprog">${Array.from({ length: d.size }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div>`;
     if (!me && n < d.size) {
@@ -1744,7 +1768,7 @@ function renderVote(progOnly) {
       ${p ? `<div class="vbar2"><i id="vProg" style="width:${(p.done / p.total) * 100}%"></i></div>` : ""}</div></div>
       ${p ? `<div class="vnote">이 화면을 닫지 말아 주세요.</div>` : ""}`;
   } else if (d.status === "voting") {
-    h += `<div class="vnote">${me ? "한 곳을 골라 주세요. 모두 투표하기 전에는 바꿀 수 있어요." : "참여한 사람만 투표할 수 있어요."} 시간은 지금 출발 기준이에요.</div>`;
+    h += `<div class="vnote">${me ? "한 곳을 골라 주세요. 모두 투표하기 전에는 바꿀 수 있어요." : "참여한 사람만 투표할 수 있어요."} ${d.meet_at ? "시간은 약속 시간에 맞춰 도착하는 기준이에요." : "시간은 지금 출발 기준이에요."}</div>`;
     h += (d.candidates || []).map((c, i) => `<div class="cand ${me && me.choice === c.id ? "mine" : ""}" style="--d:${i * 70}ms">
       <div class="ch"><span class="cn">${["🥇", "🥈", "🥉"][i] || ""} ${esc(c.name)}</span><span class="cs">평균 ${fmtMin(avgMin(c))}</span></div>
       <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div>
@@ -1756,6 +1780,7 @@ function renderVote(progOnly) {
       ${u.voted ? '<span class="ok">✓ 투표함</span>' : '<span class="wait">기다리는 중</span>'}</div>`).join("")}</div>`;
     h += `<button class="vbtn plain" id="vShare">🔗 링크 다시 보내기</button>`;
     const nv = d.people.filter((u) => u.voted).length;
+    if (d.is_owner) h += `<button class="vbtn plain" id="vReroll">🔄 다른 후보 보기</button>`;
     if (d.is_owner && nv && nv < n) h += `<button class="vbtn quiet" id="vClose2">투표 안 한 사람 빼고 지금 마감하기</button>`;
   } else {
     const cs = d.candidates || [], w = cs.find((c) => c.id === d.winner) || cs[0];
@@ -1842,6 +1867,15 @@ $("#vBody").addEventListener("click", async (e) => {
     if (error) return toast(verr(error));
     store.set(`vote:${d.id}`, null); return loadVote();
   }
+  if (t.id === "vReroll") {
+    const left = votePool({ ...d, skip: [...(d.skip || []), ...(d.candidates || []).map((c) => c.id)] }).length;
+    if (!left) return toast("더 고를 곳이 없어요");
+    if (!confirm(d.people.some((u) => u.voted) ? "지금 후보 3곳을 빼고 다시 뽑을까요? 이미 한 투표는 지워져요" : "지금 후보 3곳을 빼고 다시 뽑을까요?")) return;
+    const { data, error } = await sb.rpc("reroll", { p_id: d.id });
+    if (error) return toast(verr(error));
+    if (data) { VS.data = data; renderVote(); maybeCompute(); }
+    return toast("다음 후보를 고르고 있어요");
+  }
   if (t.id === "vClose2") {
     const none = d.people.filter((u) => !u.voted).map((u) => u.name).join(", ");
     if (!confirm(`${none} 님은 빼고 지금까지 들어온 표로 마감할까요?`)) return;
@@ -1881,11 +1915,16 @@ let vSize = 4;
 const VSTAT = { gather: "모으는 중", computing: "후보 고르는 중", voting: "투표 중", closed: "끝남" };
 async function openVoteNew() {
   if (!cloudUser) return openAuth();
-  $("#vNewMsg").textContent = ""; wantHint(); $("#vSize").textContent = `${vSize}명`; $("#vRecent").innerHTML = "";
+  $("#vNewMsg").textContent = ""; wantHint();
+  if (!$("#vWhen").value) {
+    const t = new Date(); if (t.getHours() >= 17) t.setDate(t.getDate() + 1);
+    const pad = (x) => String(x).padStart(2, "0");
+    $("#vWhen").value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T19:00`;
+  } $("#vSize").textContent = `${vSize}명`; $("#vRecent").innerHTML = "";
   $("#voteModal").classList.add("on");
   const { data } = await sb.rpc("my_votes");
   if (data && data.length) $("#vRecent").innerHTML = `<div class="ghead" style="margin-top:18px">최근 약속</div><div class="group">${data.slice(0, 5).map((v) => `
-    <button class="row" data-vote="${esc(v.id)}"><span class="rmain"><div class="rname">${esc(v.title)}</div><div class="rsub">${v.want ? `${esc(v.want)} · ` : ""}${VSTAT[v.status]} · ${v.n}/${v.size}명 · ${new Date(v.created_at).toLocaleDateString("ko-KR")}</div></span><span class="chev">›</span></button>`).join("")}</div>`;
+    <button class="row" data-vote="${esc(v.id)}"><span class="rmain"><div class="rname">${esc(v.title)}</div><div class="rsub">${v.meet_at ? `${esc(fmtWhen(v.meet_at))} · ` : ""}${v.want ? `${esc(v.want)} · ` : ""}${VSTAT[v.status]} · ${v.n}/${v.size}명 · ${new Date(v.created_at).toLocaleDateString("ko-KR")}</div></span><span class="chev">›</span></button>`).join("")}</div>`;
 }
 const closeVoteNew = () => $("#voteModal").classList.remove("on");
 function wantHint() {
@@ -1903,9 +1942,12 @@ $("#vCreate").onclick = async () => {
   if (want && !wantPlaces(want).length) return ($("#vNewMsg").textContent = `저장한 곳 중에 ${want} 파는 곳이 없어요. 다른 말로 써 볼까요?`);
   const title = $("#vTitle").value.trim() || (want ? `${want} 먹는 날` : `${state.month}월 약속`);
   $("#vNewMsg").textContent = "만드는 중…";
-  const { data, error } = await sb.rpc("create_vote", { p_title: title, p_size: vSize, p_want: want || null });
+  const whenV = $("#vWhen").value;
+  const meetAt = whenV ? new Date(whenV) : null;
+  if (meetAt && isNaN(meetAt)) return ($("#vNewMsg").textContent = "날짜를 다시 골라 주세요");
+  const { data, error } = await sb.rpc("create_vote", { p_title: title, p_size: vSize, p_want: want || null, p_meet_at: meetAt ? meetAt.toISOString() : null });
   if (error) return ($("#vNewMsg").textContent = verr(error));
-  $("#vTitle").value = ""; $("#vWant").value = ""; closeVoteNew(); openVote(data);
+  $("#vTitle").value = ""; $("#vWant").value = ""; $("#vWhen").value = ""; closeVoteNew(); openVote(data);
   toast("링크를 만들었어요. 나도 출발지를 넣어 주세요");
 };
 

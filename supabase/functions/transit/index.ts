@@ -6,6 +6,7 @@
 // 그 다음 app/config.js 의 transitProxy 에 https://<프로젝트>.supabase.co/functions/v1/transit 를 넣는다.
 
 const COORD = /^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$/;
+const WHEN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;  // 출발 시각 (한국 시간, 약속용)
 // 내 GitHub Pages 주소만 허용 (다른 사이트가 이 중계를 쓰지 못하게)
 const ALLOW = (Deno.env.get("ALLOW_ORIGIN") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -26,6 +27,8 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, error: "start/goal = lng,lat" }, { status: 400, headers: cors(origin) });
   }
   const q = new URLSearchParams({ start, goal, crs: "EPSG:4326", mode: "TIME", lang: "ko" });
+  const when = u.searchParams.get("time") ?? "";
+  if (WHEN.test(when)) q.set("departureTime", when);
   try {
     const r = await fetch(`https://map.naver.com/p/api/directions/pubtrans?${q}`, {
       headers: {
