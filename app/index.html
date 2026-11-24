@@ -113,6 +113,11 @@ button { cursor: pointer; }
 .pin.season { fill: var(--season); }
 .pin.off { fill: var(--dim); stroke: none; }
 .pin.sel { stroke: var(--label); stroke-width: 2; }
+/* 아이폰: 가까이 모인 핀은 숫자 동그라미로 묶음 (확대하면 풀림) */
+.clu circle { fill: var(--pin); stroke: var(--land); stroke-width: 1.5; }
+.clu.season circle { fill: var(--season); }
+.clu text { fill: #fff; font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; font-variant-numeric: tabular-nums; }
+.clu { pointer-events: none; }
 .pulse { fill: none; stroke: var(--season); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
   animation: pulse 2.2s cubic-bezier(.2,.6,.3,1) infinite; pointer-events: none; }
 @keyframes pulse { from { transform: scale(.6); opacity: .9; } to { transform: scale(3.4); opacity: 0; } }
@@ -287,6 +292,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .back:active { transform: scale(.98); opacity: .8; }
 .back small { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--label2); }
 .dname { font-size: 28px; font-weight: 700; margin: 4px 0 4px; letter-spacing: .2px; }
+.drate { margin-left: 8px; font-size: 15px; font-weight: 600; color: #ff9500; vertical-align: 4px; white-space: nowrap; }
 .dsub { font-size: 15px; color: var(--label2); margin-bottom: 14px; }
 .ttags { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
 .ttags span { font-size: 13px; font-weight: 500; padding: 4px 9px; border-radius: 999px; background: var(--fill); }
@@ -462,7 +468,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 <div class="main">
   <div id="mapWrap">
     <svg id="map" aria-label="저장한 맛집 지도">
-      <g id="gProv"></g><g id="gGu"></g><g id="gZoomLine" class="zoomlayer"></g><g id="gMuni"></g><g id="gDong"></g><g id="gLabels"></g><g id="gZoomLab" class="zoomlayer"></g><g id="gDongLab"></g><g id="gPulse"></g><g id="gPins"></g><g id="gMe"></g>
+      <g id="gProv"></g><g id="gGu"></g><g id="gZoomLine" class="zoomlayer"></g><g id="gMuni"></g><g id="gDong"></g><g id="gLabels"></g><g id="gZoomLab" class="zoomlayer"></g><g id="gDongLab"></g><g id="gPulse"></g><g id="gPins"></g><g id="gClus"></g><g id="gMe"></g>
     </svg>
     <div class="maphint" id="mapHint">지역을 누르거나 휠·두 손가락으로 확대해 보세요</div>
     <button class="zreset" id="zoomReset">↺ 전체 보기</button>
@@ -790,6 +796,58 @@ $("#crumb").onclick = () => setFocus(state.focus.type === "area" ? { type: "prov
 
 // ---------- 그리기 루프 ----------
 let raf = 0, last = 0;
+// ---------- 핀 묶기 (좁은 화면만): 화면에서 CL_R px 안에 3개 이상 모이면 숫자 동그라미 하나로 ----------
+const CL_MIN = 3, cluPool = [];
+const cluR = (n) => Math.min(13, 7.5 + Math.log2(n) * 1.5);
+let clusters = [];
+function computeClusters() {
+  for (const p of places) p.inCl = false;
+  clusters = [];
+  if (innerWidth >= 720) return;
+  // 화면을 CELL px 칸으로 나눠, 한 칸에 CL_MIN개 이상이면 그 칸의 핀들을 숫자 동그라미 하나로 (칸마다 하나라 서로 덜 겹침)
+  const CELL = 34, grid = new Map();
+  for (const p of places) {
+    if (!p.on || p === state.selected || p.x < -20 || p.x > view.W + 20 || p.y < -20 || p.y > view.H + 20) continue;
+    const k = `${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`;
+    (grid.get(k) || grid.set(k, []).get(k)).push(p);
+  }
+  for (const mem of grid.values()) {
+    if (mem.length < CL_MIN) continue;
+    for (const q of mem) q.inCl = true;
+    clusters.push({ x: mem.reduce((a, q) => a + q.x, 0) / mem.length, y: mem.reduce((a, q) => a + q.y, 0) / mem.length, n: mem.length, season: mem.some((q) => q.tags.length) });
+  }
+  // 거의 포개진 동그라미만 합친다
+  for (let merged = true; merged; ) {
+    merged = false;
+    outer: for (let i = 0; i < clusters.length; i++) for (let j = i + 1; j < clusters.length; j++) {
+      const a = clusters[i], b = clusters[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < (cluR(a.n) + cluR(b.n)) * 0.75) {
+        const n = a.n + b.n;
+        clusters[i] = { x: (a.x * a.n + b.x * b.n) / n, y: (a.y * a.n + b.y * b.n) / n, n, season: a.season || b.season };
+        clusters.splice(j, 1); merged = true; break outer;
+      }
+    }
+  }
+  // 동그라미 밑에 깔린 낱개 핀은 그 묶음에 넣는다
+  for (const p of places) if (p.on && !p.inCl && p !== state.selected)
+    for (const c of clusters) if (Math.hypot(c.x - p.x, c.y - p.y) < cluR(c.n)) { p.inCl = true; c.n++; c.season ||= p.tags.length > 0; break; }
+}
+function drawClusters() {
+  const g = $("#gClus");
+  while (cluPool.length < clusters.length) {
+    const e = el("g", { class: "clu" }, g); el("circle", {}, e); el("text", {}, e); cluPool.push(e);
+  }
+  cluPool.forEach((e, i) => {
+    const c = clusters[i];
+    if (!c) { e.style.display = "none"; return; }
+    e.style.display = "";
+    e.setAttribute("class", "clu" + (c.season ? " season" : ""));
+    const r = cluR(c.n);
+    const [ci, tx] = e.children;
+    ci.setAttribute("cx", c.x.toFixed(1)); ci.setAttribute("cy", c.y.toFixed(1)); ci.setAttribute("r", r.toFixed(1));
+    tx.setAttribute("x", c.x.toFixed(1)); tx.setAttribute("y", (c.y + 4).toFixed(1)); tx.textContent = c.n;
+  });
+}
 function frame(ts) {
   const dt = Math.min(0.033, (ts - (last || ts)) / 1000 || 0.016); last = ts;
   cam.lng.step(dt); cam.lat.step(dt); cam.d.step(dt); cam.r0.step(dt);
@@ -810,14 +868,16 @@ function frame(ts) {
 
   let intro = false;
   const el_t = ts - t0;
+  for (const p of places) { const [x, y] = P(p.lng, p.lat); p.x = x; p.y = y; }
+  computeClusters();
   for (const p of places) {
-    const [x, y] = P(p.lng, p.lat); p.x = x; p.y = y;
     const k = Math.max(0, Math.min(1, (el_t - p.delay) / 420));
     if (k < 1) intro = true;
-    p.el.setAttribute("cx", x.toFixed(1)); p.el.setAttribute("cy", (y - (1 - k) * 18).toFixed(1));
-    p.el.setAttribute("r", (pinR(p) * backOut(k)).toFixed(2));
+    p.el.setAttribute("cx", p.x.toFixed(1)); p.el.setAttribute("cy", (p.y - (1 - k) * 18).toFixed(1));
+    p.el.setAttribute("r", p.inCl ? "0" : (pinR(p) * backOut(k)).toFixed(2));
   }
-  for (const pl of pulses) { pl.el.setAttribute("cx", pl.p.x.toFixed(1)); pl.el.setAttribute("cy", pl.p.y.toFixed(1)); }
+  drawClusters();
+  for (const pl of pulses) { pl.el.setAttribute("cx", pl.p.x.toFixed(1)); pl.el.setAttribute("cy", pl.p.y.toFixed(1)); pl.el.style.visibility = pl.p.inCl ? "hidden" : ""; }
   if (state.me) {
     const [x, y] = P(state.me.lng, state.me.lat);
     for (const e of [meHalo, meDot]) { e.setAttribute("cx", x.toFixed(1)); e.setAttribute("cy", y.toFixed(1)); }
@@ -1305,7 +1365,7 @@ function renderDetail(p) {
   const rating = p.rating ? (wk && wk.avgRating) || p.rating : null;
   $("#pDetail").innerHTML = `
     <div class="dbar"><button class="back" id="back">‹ 목록으로<small>Esc · 스와이프 · 브라우저 뒤로</small></button></div>
-    <div class="dname">${esc(p.name)}</div>
+    <div class="dname">${esc(p.name)}${rating ? `<span class="drate">★ ${rating.toFixed(2)}</span>` : ""}</div>
     <div class="dsub">${esc(p.kind || p.cat || "음식점")} · ${esc(p.region)} ${esc(p.area || "")}${p.chain ? " · 체인·지점" : p.main ? " · 본점" : ""}</div>
     ${(() => { const o = openInfo(p); return o.known ? `<div class="openrow ${o.closed ? "closed" : o.open ? "open" : ""}"><b>${o.closed ? "오늘 휴무" : o.inBreak ? "브레이크타임" : o.open ? "영업 중" : "영업 전·후"}</b><span>${esc(o.text)}</span></div>` : ""; })()}
     <div class="visitbox">
@@ -1313,12 +1373,6 @@ function renderDetail(p) {
       <textarea class="memo" id="memo" rows="1" placeholder="메모" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
-    ${rating || p.vr ? `<div class="stats">
-      ${rating ? `<div><b>★ ${rating.toFixed(2)}</b><small>${wk && wk.n > 1 ? `최근 ${Math.min(4, wk.n)}주 평균` : "별점"}</small></div>` : ""}
-      ${p.vr ? `<div><b>${p.vr.toLocaleString()}${wk && wk.newReviews > 0 ? `<em>+${wk.newReviews}</em>` : ""}</b><small>방문자 후기${wk && wk.newReviews > 0 ? " · 지난주 대비" : ""}</small></div>` : ""}
-      ${p.br ? `<div><b>${p.br.toLocaleString()}</b><small>블로그</small></div>` : ""}
-    </div>` : ""}
-    ${p.one ? `<div class="oneliner">“${esc(p.one)}”</div>` : ""}
     ${tr ? `<div class="transit" id="transitBox"><span style="font-size:24px">${tr.how === "걸어서" ? "🚶" : tr.how === "기차·버스" ? "🚄" : "🚇"}</span><div><div class="big">약 ${fmtMin(tr.min)}</div><small>${esc(state.me.label)}에서 ${tr.how} · ${tr.km.toFixed(1)}km · 거리로 낸 대략값</small></div></div>`
           : `<div class="transit ask"><span style="font-size:22px">🚇</span><div style="flex:1"><small>내 위치를 정하면 대중교통 시간이 나와요</small></div><button id="askLoc">위치 설정</button></div>`}
     ${t.length ? `<div class="seasonhero"><small>${state.month}월 제철 메뉴</small><div>${t.map((x) => x.emoji + " " + esc(x.via.menu || x.via.review ? x.via.text : x.key)).join("  ")}</div><p>${esc(t[0].note)}${t[0].via.menu && t[0].via.menu.price ? " · " + esc(t[0].via.menu.price) : ""}${t[0].via.review ? ` · 후기 ${t[0].via.review.count}번 언급` : ""}</p>${t[0].tip ? `<p class="tip">${esc(t[0].tip)}</p>` : ""}</div>` : ""}
@@ -1465,9 +1519,11 @@ svg.addEventListener("pointerup", (e) => {
   const t0el = document.elementFromPoint(e.clientX, e.clientY);
   // 전국 화면에서 탭은 도 선택. 단, 직접 확대해 둔 상태면 핀을 고른다
   if (state.focus.type === "home" && uz.z.t < 1.5 && t0el && t0el.dataset.prov) { select(null); return setFocus({ type: "prov", prov: t0el.dataset.prov }); }
+  const cl = clusters.find((c) => Math.hypot(c.x - x, c.y - y) < cluR(c.n) + 6);
+  if (cl) return zoomAt(cl.x, cl.y, 2.6);
   let best = null, bd = 18;
   for (const p of places) {
-    if (!p.on) continue;
+    if (!p.on || p.inCl) continue;
     const d = Math.hypot(p.x - x, p.y - y) - (p.tags.length ? 3 : 0);
     if (d < bd) { bd = d; best = p; }
   }

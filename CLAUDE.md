@@ -88,8 +88,8 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
   - 폰 동기화: 로컬 서버가 없으면 동기화 버튼이 `sync_requests`에 요청 → PC dev_server가 1분마다 확인해 처리(시험: 104초에 완료). 이 프로젝트는 새 테이블 권한을 자동으로 안 줘서 schema.sql에 grant 필요
 - [x] Supabase `transit` 함수 배포 (2026-11-24, 대시보드 편집기로 — `index.ts` 파일을 지우면 'Entrypoint path does not exist'). Verify JWT 끔, `ALLOW_ORIGIN=https://msroe84-web.github.io` (다른 주소는 403). 앱은 로컬이면 dev_server `/api/transit`, 배포 사이트면 `config.js`의 `transitProxy`. 함수 코드를 고치면 대시보드에 다시 붙여넣어 배포해야 함
 - [x] 약속·투표 (2026-11-24): 출발지 모이면 이동시간 합 최소 3곳 자동 추천 → 전원 투표 시 자동 마감 → 같은 링크가 결과 화면 (`supabase/votes.sql`)
-- [ ] (13회차) 상세: 별점만 이름 옆에 작게, 후기 수·블로그 수·한 줄 요약 빼기
-- [ ] (13회차) 아이폰 핀 빽빽함 → 가까운 핀은 숫자 동그라미로 묶고 확대하면 풀기
+- [x] (13회차) 상세: 별점만 이름 옆에 작게(`.drate`), 후기 수·블로그 수·한 줄 요약 뺌
+- [x] (13회차) 아이폰 핀 묶기: 화면 폭 720 미만에서만, 34px 칸마다 3개 이상이면 숫자 동그라미(`computeClusters`·`drawClusters`, 제철 있으면 주황). 거의 포개진 동그라미는 합침, 누르면 그 자리 2.6배 확대. 선택한 핀은 안 묶음
 - [ ] (13회차) 약속: 날짜+시간 (그날 휴무 제외, 그 시간 기준 경로) · 만든 사람이 '다른 후보 보기'로 다시 뽑기
 - [ ] (13회차) 친구가 내 지도를 볼 때 단골 표시(방문 횟수)는 보이게 (메모는 나만)
 - [ ] (13회차) 이번 달 새로 시작한 제철 음식에 'NEW' 배지
