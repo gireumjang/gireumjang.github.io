@@ -208,9 +208,27 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .tag.gray { background: var(--fill); color: var(--label2); font-weight: 500; }
 .tag.went { background: rgba(52,199,89,.16); color: var(--me); }
 .tag.went.t2, .visit.on.t2 { background: var(--tier2-soft); color: var(--pin); }
-.tag.went.t3, .visit.on.t3 { background: var(--tier3-soft); color: var(--tier3); animation: hof 2.6s ease-in-out infinite; }
-@keyframes hof { 50% { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .tag.went.t3, .visit.on.t3 { animation: none; } }
+.tag.went.t3, .visit.on.t3 { background: var(--tier3-soft); color: var(--tier3); }
+/* 방문 횟수 모션: 1~4 가만히 · 5~9 물결 · 10~19 빛 지나감 + 별 반짝 · 20+ 왕관 + 색 흐름 */
+.tag.went .vi, .visit .vi { display: inline-block; font-style: normal; }
+.tag.went.t2, .visit.on.t2 { animation: ripple 2.8s ease-out infinite; }
+@keyframes ripple { 0% { box-shadow: 0 0 0 0 rgba(0,122,255,.5); } 70%, 100% { box-shadow: 0 0 0 7px rgba(0,122,255,0); } }
+.tag.went.t3, .visit.on.t3, .tag.went.t4, .visit.on.t4 { position: relative; overflow: hidden; }
+.tag.went.t3::after, .visit.on.t3::after, .tag.went.t4::after, .visit.on.t4::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.8) 50%, transparent 70%); transform: translateX(-130%); animation: sweep 2.6s ease-in-out infinite; }
+@keyframes sweep { 55%, 100% { transform: translateX(130%); } }
+.t3 .vi { animation: twinkle 2.6s ease-in-out infinite; }
+@keyframes twinkle { 0%, 40%, 100% { transform: scale(1) rotate(0); } 60% { transform: scale(1.45) rotate(72deg); } }
+.tag.went.t4, .visit.on.t4 { color: #fff; background: linear-gradient(90deg, #ff9500, #ff2d55, #af52de, #ff2d55, #ff9500); background-size: 250% 100%;
+  animation: flow 3s ease-in-out infinite alternate, glow 2s ease-in-out infinite; }
+@keyframes flow { to { background-position: 100% 0; } }
+@keyframes glow { 50% { box-shadow: 0 0 12px rgba(255,45,85,.6); } }
+.t4 .vi { animation: bob 1.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-2px) rotate(-10deg) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  .tag.went, .visit.on, .tag.went .vi, .visit .vi { animation: none !important; }
+  .tag.went::after, .visit.on::after { display: none; }
+}
 .openrow { display: flex; align-items: baseline; gap: 8px; margin: -6px 0 12px; font-size: 15px; }
 .openrow b { font-weight: 600; color: var(--label2); }
 .openrow.open b { color: var(--me); } .openrow.closed b { color: #ff3b30; }
@@ -966,7 +984,8 @@ const closedToday = (p) => { const o = openInfo(p); return o.known && o.closed; 
 // ---------- 갔다 옴 + 자주 간 유형 학습 ----------
 let visits = store.get("visits") || {};          // {placeId: ["2026-11-23", …]}
 const visitCount = (p) => (visits[p.id] || []).length;
-const visitTier = (n) => (n >= 10 ? "t3" : n >= 5 ? "t2" : "t1");
+const visitTier = (n) => (n >= 20 ? "t4" : n >= 10 ? "t3" : n >= 5 ? "t2" : "t1");
+const visitIcon = (n) => `<i class="vi">${n >= 20 ? "👑" : n >= 10 ? "★" : "✓"}</i>`;
 let notes = store.get("notes") || {};            // {placeId: "메모"}
 function typePrefs() {
   const c = {}; let total = 0;
@@ -1123,7 +1142,7 @@ const rowHTML = (p) => {
     <span class="ico ${p.tags.length ? "season" : ""}">${icon(p)}</span>
     <span class="rmain">
       <div class="rname">${state.q ? hl(p.name) : esc(p.name)}</div>
-      <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.emoji} ${x.key}</span>`).join("")}${visitCount(p) ? `<span class="tag went ${visitTier(visitCount(p))}">${visitCount(p) >= 10 ? "★" : "✓"} ${visitCount(p)}번</span>` : ""}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
+      <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.emoji} ${x.key}</span>`).join("")}${visitCount(p) ? `<span class="tag went ${visitTier(visitCount(p))}">${visitIcon(visitCount(p))} ${visitCount(p)}번</span>` : ""}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
       ${searchHit(p)}
     </span>
     ${t ? `<span class="rt"><b>${fmtMin(t.min)}</b>${t.km.toFixed(1)}km</span>` : '<span class="chev">›</span>'}
@@ -1290,7 +1309,7 @@ function renderDetail(p) {
     <div class="dsub">${esc(p.kind || p.cat || "음식점")} · ${esc(p.region)} ${esc(p.area || "")}${p.chain ? " · 체인·지점" : p.main ? " · 본점" : ""}</div>
     ${(() => { const o = openInfo(p); return o.known ? `<div class="openrow ${o.closed ? "closed" : o.open ? "open" : ""}"><b>${o.closed ? "오늘 휴무" : o.inBreak ? "브레이크타임" : o.open ? "영업 중" : "영업 전·후"}</b><span>${esc(o.text)}</span></div>` : ""; })()}
     <div class="visitbox">
-      <div class="visitrow">${(() => { const n = visitCount(p); return `<button class="visit ${n ? "on " + visitTier(n) : ""}" id="visitBtn">${n ? `${n >= 10 ? "★ " : ""}방문 ${n}회` : "방문 기록"}</button>${n ? `<small>마지막 ${esc(visits[p.id].at(-1))}</small><button class="undo" id="visitUndo">취소</button>` : `<small>기록하면 자주 가는 유형을 먼저 보여줘요</small>`}`; })()}</div>
+      <div class="visitrow">${(() => { const n = visitCount(p); return `<button class="visit ${n ? "on " + visitTier(n) : ""}" id="visitBtn">${n ? `${n >= 10 ? visitIcon(n) + " " : ""}방문 ${n}회` : "방문 기록"}</button>${n ? `<small>마지막 ${esc(visits[p.id].at(-1))}</small><button class="undo" id="visitUndo">취소</button>` : `<small>기록하면 자주 가는 유형을 먼저 보여줘요</small>`}`; })()}</div>
       <textarea class="memo" id="memo" rows="1" placeholder="메모" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
@@ -1336,7 +1355,7 @@ $("#pDetail").addEventListener("input", (e) => {
   store.set("notes", notes); fitMemo(); cloudSave("notes");
 });
 $("#pDetail").addEventListener("click", async (e) => {
-  if (e.target.id === "visitBtn" && state.selected) { markVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); toast("✓ 방문 기록했어요"); return; }
+  if (e.target.closest("#visitBtn") && state.selected) { markVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); toast("✓ 방문 기록했어요"); return; }
   if (e.target.id === "visitUndo" && state.selected) { undoVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); return; }
   const c = e.target.closest("[data-copy]"); if (!c) return;
   try { await navigator.clipboard.writeText(c.dataset.copy); toast("복사했어요"); } catch { toast("복사하지 못했어요"); }
