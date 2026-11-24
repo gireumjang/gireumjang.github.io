@@ -708,12 +708,18 @@ function kick() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
 
 let pulses = [];
 function stylePins() {
-  const gp = $("#gPulse"); gp.textContent = ""; pulses = [];
+  // 제철 핀의 퍼지는 고리: 가게마다 하나를 만들어 두고 켜고 끄기만 한다 (새로 만들면 지도 왼쪽 위에서 깜빡이고 다 같이 다시 시작함)
+  const gp = $("#gPulse"); pulses = [];
   for (const p of places) {
     const on = visible(p);
     p.on = on;
     p.el.setAttribute("class", "pin" + (!on ? " off" : p.tags.length ? " season" : "") + (p === state.selected ? " sel" : ""));
-    if (on && p.tags.length && pulses.length < 60) pulses.push({ p, el: el("circle", { class: "pulse", r: 4, style: `animation-delay:${(Math.random() * 2).toFixed(2)}s` }, gp) });
+    if (on && p.tags.length && pulses.length < 60) {
+      if (!p.pulse) p.pulse = el("circle", { class: "pulse", r: 4, cx: -99, cy: -99, style: `animation-delay:-${(Math.random() * 2.2).toFixed(2)}s` }, gp);
+      if (p.x != null) { p.pulse.setAttribute("cx", p.x.toFixed(1)); p.pulse.setAttribute("cy", p.y.toFixed(1)); }
+      p.pulse.style.display = "";
+      pulses.push({ p, el: p.pulse });
+    } else if (p.pulse) p.pulse.style.display = "none";
   }
   const rank = (p) => (p === state.selected ? 4 : !p.on ? 0 : p.tags.length ? 2 : 1);
   const g = $("#gPins");
