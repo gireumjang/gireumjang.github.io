@@ -77,7 +77,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 
 ## 할 일 (우선순위 순)
 
-- [x] **배포 완료 (2026-11-24):** https://msroe84-web.github.io/hanjeom/ ← 저장소 https://github.com/msroe84-web/hanjeom (공개, main). `app/` 이나 워크플로가 바뀐 push 때마다 GitHub Actions가 자동 배포. 액션은 upload-pages-artifact@v5 + deploy-pages@v5 짝으로 맞출 것(v3+v4 섞으면 '파일 없음'으로 실패). 첫 배포 직후 'Deployment failed, try again later'는 재실행하면 됐음
+- [x] **배포 완료 (2026-11-24):** https://msroe84-web.github.io/hanjeom/ ← 저장소 https://github.com/msroe84-web/hanjeom (공개, main). `app/` 이나 워크플로가 바뀐 push 때마다 GitHub Actions가 자동 배포. 액션은 upload-pages-artifact@v5 + deploy-pages@v5 짝, 올리기(build)·게시(deploy)는 반드시 다른 job (한 job이면 'No artifacts named github-pages'로 자주 실패)
   - 공개 저장소라 개인 정보 주의: 네이버 공유 폴더 ID·닉네임은 올리지 않음(ID는 `data/shares.json`), 옛 plist는 .gitignore
 - [ ] Supabase 무료 프로젝트: `transit` 함수 배포 → `app/config.js` 의 `transitProxy` 설정, `ALLOW_ORIGIN` 에 Pages 주소
 - [ ] 방문 기록·메모를 Supabase에 저장 (기기 상관없이 같게, 친구에겐 안 보이게). 지금은 localStorage라 기기마다 다름
