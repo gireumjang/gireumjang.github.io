@@ -134,10 +134,22 @@ begin
   update public.votes set candidates = p_cands, status = 'voting' where id = p_id and status = 'computing';
 end $$;
 
--- 투표 (마감 전엔 바꿀 수 있음). 모두 투표하면 자동 마감: 표 많은 곳 → 같으면 이동시간 합 작은 곳
+-- 마감 처리 (안에서만 씀): 표 많은 곳 → 같으면 이동시간 합 작은 곳 → 그래도 같으면 후보 순서
+create or replace function public.finish_vote(p_id text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v public.votes; win text;
+begin
+  select * into v from public.votes where id = p_id;
+  select c->>'id' into win from jsonb_array_elements(v.candidates) with ordinality as t(c, i)
+    order by (select count(*) from public.vote_people p where p.vote_id = p_id and p.choice = c->>'id') desc,
+             (c->>'sum')::numeric asc, i asc limit 1;
+  update public.votes set status = 'closed', winner = win, closed_at = now() where id = p_id;
+end $$;
+
+-- 투표 (마감 전엔 바꿀 수 있음). 모두 투표하면 자동 마감
 create or replace function public.cast_vote(p_id text, p_pid bigint, p_token uuid, p_choice text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare v public.votes; left_n int; win text;
+declare v public.votes; left_n int;
 begin
   select * into v from public.votes where id = p_id for update;
   if not found or v.status <> 'voting' then raise exception 'not_voting'; end if;
@@ -145,25 +157,31 @@ begin
   update public.vote_people set choice = p_choice, voted_at = now() where vote_id = p_id and id = p_pid and token = p_token;
   if not found then raise exception 'not_allowed'; end if;
   select count(*) into left_n from public.vote_people where vote_id = p_id and choice is null;
-  if left_n = 0 then
-    select c->>'id' into win from jsonb_array_elements(v.candidates) with ordinality as t(c, i)
-      order by (select count(*) from public.vote_people p where p.vote_id = p_id and p.choice = c->>'id') desc,
-               (c->>'sum')::numeric asc, i asc limit 1;
-    update public.votes set status = 'closed', winner = win, closed_at = now() where id = p_id;
-  end if;
+  if left_n = 0 then perform public.finish_vote(p_id); end if;
+  return public.get_vote(p_id);
+end $$;
+
+-- 만든 사람만: 안 한 사람은 빼고 지금까지 들어온 표로 마감 (1표 이상 있어야)
+create or replace function public.close_now(p_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  perform 1 from public.votes where id = p_id and owner = auth.uid() and status = 'voting' for update;
+  if not found then raise exception 'not_allowed'; end if;
+  if not exists (select 1 from public.vote_people where vote_id = p_id and choice is not null) then raise exception 'no_votes'; end if;
+  perform public.finish_vote(p_id);
   return public.get_vote(p_id);
 end $$;
 
 -- 함수는 기본으로 누구나(PUBLIC) 부를 수 있게 만들어지므로 먼저 막고 필요한 것만 연다
-revoke execute on function public.vote_json(public.votes) from public, anon, authenticated;
+revoke execute on function public.vote_json(public.votes), public.finish_vote(text) from public, anon, authenticated;
 revoke execute on function public.get_vote(text), public.create_vote(text, int, text), public.my_votes(),
   public.join_vote(text, text, text, double precision, double precision),
   public.leave_vote(text, bigint, uuid),
-  public.start_now(text), public.claim_compute(text), public.save_candidates(text, jsonb),
+  public.start_now(text), public.close_now(text), public.claim_compute(text), public.save_candidates(text, jsonb),
   public.cast_vote(text, bigint, uuid, text) from public;
 grant usage on schema public to anon, authenticated;
 grant execute on function public.get_vote(text), public.join_vote(text, text, text, double precision, double precision),
   public.leave_vote(text, bigint, uuid),
   public.claim_compute(text), public.save_candidates(text, jsonb), public.cast_vote(text, bigint, uuid, text)
   to anon, authenticated;
-grant execute on function public.create_vote(text, int, text), public.my_votes(), public.start_now(text) to authenticated;
+grant execute on function public.create_vote(text, int, text), public.my_votes(), public.start_now(text), public.close_now(text) to authenticated;

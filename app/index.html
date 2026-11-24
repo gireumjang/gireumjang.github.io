@@ -1532,7 +1532,7 @@ $("#locInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submi
 const VS = { id: null, data: null, timer: 0, sig: "", computing: false, prog: null, gps: null, msg: "" };
 const VERR = { name_taken: "이미 있는 이름이에요. 다른 이름으로 해 주세요", full: "인원이 다 찼어요", not_gathering: "모집이 이미 끝났어요",
   not_found: "없는 약속이에요", not_voting: "지금은 투표할 수 없어요", need_two: "2명 이상 모여야 시작할 수 있어요",
-  login_required: "로그인해야 만들 수 있어요", not_allowed: "이 기기에서는 할 수 없어요" };
+  login_required: "로그인해야 만들 수 있어요", not_allowed: "이 기기에서는 할 수 없어요", no_votes: "아직 아무도 투표하지 않았어요" };
 const verr = (e) => { const k = Object.keys(VERR).find((x) => e && String(e.message || "").includes(x)); return k ? VERR[k] : "잠시 뒤에 다시 해 주세요"; };
 const voteLink = (id) => `${location.origin}${location.pathname}#v=${id}`;
 const myEntry = (d) => { const m = store.get(`vote:${d.id}`); return m && d.people.some((u) => u.pid === m.pid) ? m : null; };
@@ -1664,6 +1664,8 @@ function renderVote(progOnly) {
       <span class="rmain"><div class="rname">${esc(u.name)}${me && me.pid === u.pid ? '<span class="me">나</span>' : ""}</div></span>
       ${u.voted ? '<span class="ok">✓ 투표함</span>' : '<span class="wait">기다리는 중</span>'}</div>`).join("")}</div>`;
     h += `<button class="vbtn plain" id="vShare">🔗 링크 다시 보내기</button>`;
+    const nv = d.people.filter((u) => u.voted).length;
+    if (d.is_owner && nv && nv < n) h += `<button class="vbtn quiet" id="vClose2">투표 안 한 사람 빼고 지금 마감하기</button>`;
   } else {
     const cs = d.candidates || [], w = cs.find((c) => c.id === d.winner) || cs[0];
     const votesOf = (c) => d.people.filter((u) => u.choice === c.id);
@@ -1679,7 +1681,8 @@ function renderVote(progOnly) {
       const others = cs.filter((c) => c !== w);
       if (others.length) h += `<div class="ghead" style="margin-top:22px">다른 후보</div>${others.map((c) => `<div class="cand"><div class="ch"><span class="cn">${esc(c.name)}</span><span class="cs">합 ${fmtMin(c.sum)}</span></div>
         <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div><div class="cvotes"><b>${votesOf(c).length}표</b>${votesOf(c).length ? " · " + votesOf(c).map((u) => esc(u.name)).join(", ") : ""}</div></div>`).join("")}`;
-      h += `<div class="vnote" style="margin-top:12px">${esc(w.name)}에 투표: ${votesOf(w).map((u) => esc(u.name)).join(", ") || "-"}</div>`;
+      const none = d.people.filter((u) => !u.choice);
+      h += `<div class="vnote" style="margin-top:12px">${esc(w.name)}에 투표: ${votesOf(w).map((u) => esc(u.name)).join(", ") || "-"}${none.length ? `<br>투표 안 함: ${none.map((u) => esc(u.name)).join(", ")}` : ""}</div>`;
     }
   }
   $("#vBody").innerHTML = h;
@@ -1740,6 +1743,14 @@ $("#vBody").addEventListener("click", async (e) => {
     const { error } = await sb.rpc("leave_vote", { p_id: d.id, p_pid: m.pid, p_token: m.token });
     if (error) return toast(verr(error));
     store.set(`vote:${d.id}`, null); return loadVote();
+  }
+  if (t.id === "vClose2") {
+    const none = d.people.filter((u) => !u.voted).map((u) => u.name).join(", ");
+    if (!confirm(`${none} 님은 빼고 지금까지 들어온 표로 마감할까요?`)) return;
+    const { data, error } = await sb.rpc("close_now", { p_id: d.id });
+    if (error) return toast(verr(error));
+    if (data) { VS.data = data; renderVote(); }
+    return toast("🎉 마감했어요");
   }
   if (t.id === "vStart") {
     const { error } = await sb.rpc("start_now", { p_id: d.id });
