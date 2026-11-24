@@ -331,6 +331,70 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .smodal .msg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
 .smodal [hidden] { display: none !important; }
 
+/* 약속·투표 */
+.smodal .card { max-height: calc(100% - 40px); overflow-y: auto; }
+.stepper { display: flex; align-items: center; justify-content: space-between; height: 50px; margin-top: 8px; padding: 0 6px 0 14px; border-radius: 12px; background: var(--cell); font-size: 17px; }
+.stepper div { display: flex; align-items: center; gap: 4px; }
+.stepper button { width: 38px; height: 38px; border-radius: 10px; background: var(--fill); color: var(--pin); font-size: 22px; font-weight: 600; }
+.stepper b { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.vcta { background: rgba(255,149,0,.13); }
+.vpage { position: fixed; inset: 0; z-index: 25; display: none; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg); overscroll-behavior: contain; }
+.vpage.on { display: block; animation: up .45s cubic-bezier(.32,.72,0,1) both; }
+.vinner { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px calc(env(safe-area-inset-bottom, 0px) + 28px); }
+.vtitle { font-size: 28px; font-weight: 700; margin: 10px 0 2px; word-break: keep-all; }
+.vsub { font-size: 15px; color: var(--label2); margin-bottom: 14px; }
+.vprog { display: flex; gap: 5px; margin: 0 0 20px; }
+.vprog i { flex: 1; height: 6px; border-radius: 3px; background: var(--fill); transition: background .4s; }
+.vprog i.on { background: var(--me); }
+.vform { background: var(--cell); border-radius: 14px; padding: 14px; margin-bottom: 20px; animation: rise .5s cubic-bezier(.32,.72,0,1) both; }
+.vform h4 { margin: 0 0 10px; font-size: 17px; }
+.vform input { display: block; width: 100%; height: 48px; border-radius: 10px; background: var(--fill); padding: 0 12px; font-size: 17px; outline: none; }
+.vform .lrow { display: flex; gap: 8px; margin-top: 8px; }
+.vform .lrow input { flex: 1; min-width: 0; }
+.vform .lrow button { flex: none; height: 48px; padding: 0 12px; border-radius: 10px; background: var(--fill); color: var(--pin); font-size: 15px; font-weight: 600; }
+.vbtn { display: block; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; margin-top: 10px; background: var(--pin); color: #fff;
+  transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.vbtn:active { transform: scale(.97); }
+.vbtn.plain { background: var(--fill); color: var(--pin); }
+.vbtn.quiet { background: none; color: var(--label2); font-weight: 500; font-size: 15px; height: 40px; }
+.vmsg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
+.vnote { font-size: 13px; color: var(--label2); line-height: 1.45; margin: 4px 4px 16px; }
+.vperson .ico { background: rgba(52,199,89,.14); font-size: 15px; font-weight: 700; color: var(--me); }
+.vperson .me { font-size: 12px; font-weight: 600; color: var(--pin); margin-left: 4px; }
+.vperson .leave { flex: none; font-size: 13px; color: var(--label2); }
+.vperson .ok { flex: none; font-size: 13px; font-weight: 600; color: var(--me); }
+.vperson .wait { flex: none; font-size: 13px; color: var(--label3); }
+.vempty .ico { background: var(--fill); color: var(--label3); }
+.vcalc { display: flex; align-items: center; gap: 14px; background: var(--cell); border-radius: 14px; padding: 16px; margin-bottom: 20px; }
+.vcalc b { display: block; font-size: 17px; } .vcalc small { font-size: 13px; color: var(--label2); }
+.spin { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--fill); border-top-color: var(--pin); animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.vbar2 { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin-top: 8px; }
+.vbar2 i { display: block; height: 100%; background: var(--pin); border-radius: 3px; transition: width .4s cubic-bezier(.32,.72,0,1); }
+.cand { position: relative; background: var(--cell); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; animation: rise .5s cubic-bezier(.32,.72,0,1) var(--d, 0ms) both; }
+.cand.mine { box-shadow: inset 0 0 0 2px var(--pin); }
+.cand .ch { display: flex; align-items: baseline; gap: 10px; }
+.cand .cn { flex: 1; min-width: 0; font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cand .cs { flex: none; font-size: 15px; font-weight: 700; color: var(--me); font-variant-numeric: tabular-nums; }
+.cand .ck { font-size: 13px; color: var(--label2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptimes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ptimes span { font-size: 13px; padding: 4px 9px; border-radius: 999px; background: var(--fill); font-variant-numeric: tabular-nums; }
+.ptimes b { font-weight: 600; }
+.cact { display: flex; gap: 8px; margin-top: 12px; }
+.cact button { height: 42px; border-radius: 10px; font-size: 15px; font-weight: 600; transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.cact button:active { transform: scale(.96); }
+.cact .pick { flex: 1; background: var(--pin); color: #fff; }
+.cand.mine .cact .pick { background: rgba(0,122,255,.14); color: var(--pin); }
+.cact .see { padding: 0 14px; background: var(--fill); color: var(--pin); }
+.cvotes { margin-top: 8px; font-size: 13px; color: var(--label2); }
+.cvotes b { color: var(--label); }
+.vwin { border-radius: 16px; padding: 18px 16px; margin-bottom: 16px; color: #fff; background: linear-gradient(135deg, #ff9500, #ff3b30);
+  box-shadow: 0 8px 24px rgba(255,90,0,.25); animation: rise .6s cubic-bezier(.32,.72,0,1) both; }
+.vwin small { font-size: 13px; font-weight: 600; opacity: .9; }
+.vwin .wn { font-size: 26px; font-weight: 700; margin: 2px 0; word-break: keep-all; }
+.vwin .wk { font-size: 14px; opacity: .92; }
+.vwin .ptimes span { background: rgba(255,255,255,.22); }
+
 /* toast */
 #toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 40; transform: translate(-50%, -90px);
   background: var(--sheet); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,.15);
@@ -412,6 +476,19 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
     <button class="bigbtn plain" id="authOut" hidden>로그아웃</button>
   </div>
 </div>
+<div id="voteModal" class="smodal">
+  <div class="dim" id="voteDim"></div>
+  <div class="card">
+    <h3>🍻 약속 잡기</h3>
+    <p>링크를 받은 친구가 이름과 출발지를 넣어요. 다 모이면 모두의 이동시간 합이 가장 작은 내 맛집 3곳을 골라 투표해요.</p>
+    <div class="field"><input id="vTitle" placeholder="약속 이름 (예: 12월 송년회)" maxlength="40" enterkeyhint="done"></div>
+    <div class="stepper"><span>모일 인원 (나 포함)</span><div><button id="vMinus" aria-label="한 명 줄이기">−</button><b id="vSize">4명</b><button id="vPlus" aria-label="한 명 늘리기">+</button></div></div>
+    <div class="msg" id="vNewMsg"></div>
+    <button class="bigbtn primary" id="vCreate">링크 만들기</button>
+    <div id="vRecent"></div>
+  </div>
+</div>
+<div id="votePage" class="vpage" role="dialog" aria-label="약속 투표"><div class="vinner" id="vBody"></div></div>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
@@ -845,9 +922,9 @@ function km(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-function transit(p) {
-  if (!state.me) return null;
-  const d = km(state.me, p);
+function transit(p) { return state.me ? estimate(state.me, p) : null; }
+function estimate(from, p) {
+  const d = km(from, p);
   let min, how;
   if (d < 1.2) { min = (d * 1.3) / 4.5 * 60; how = "걸어서"; }          // 도보 4.5km/h
   else if (d <= 40) { min = 12 + d * 1.35 / 24 * 60; how = "대중교통"; } // 도시 안: 걷기·대기 12분 + 평균 24km/h
@@ -983,17 +1060,22 @@ function transitProxy() {
   return (window.HANJEOM_CONFIG || {}).transitProxy || null;
 }
 const realCache = new Map();
-async function loadRealTransit(p) {
-  const proxy = transitProxy(); if (!proxy || !state.me) return;
-  const key = `${state.me.lng.toFixed(4)},${state.me.lat.toFixed(4)}>${p.id}`;
+// from{lat,lng} → 가게 p 실제 경로. { r, fresh }: fresh 는 이번에 네이버에 새로 물어봤는지 (간격 두기용)
+async function realRoute(from, p) {
+  const proxy = transitProxy(); if (!proxy) return { r: { ok: false }, fresh: false };
+  const key = `${from.lng.toFixed(4)},${from.lat.toFixed(4)}>${p.id}`;
   let r = realCache.get(key);
-  if (!r) {
-    try {
-      const res = await fetch(`${proxy}?start=${state.me.lng.toFixed(6)},${state.me.lat.toFixed(6)}&goal=${p.lng},${p.lat}`);
-      r = await res.json();
-    } catch { r = { ok: false }; }
-    realCache.set(key, r);
-  }
+  if (r) return { r, fresh: false };
+  try {
+    const res = await fetch(`${proxy}?start=${from.lng.toFixed(6)},${from.lat.toFixed(6)}&goal=${p.lng},${p.lat}`);
+    r = await res.json();
+  } catch { r = { ok: false }; }
+  realCache.set(key, r);
+  return { r, fresh: true };
+}
+async function loadRealTransit(p) {
+  if (!transitProxy() || !state.me) return;
+  const { r } = await realRoute(state.me, p);
   const box = $("#transitBox");
   if (!box || state.selected !== p || !r.ok || !r.min) return;   // 실패하면 거리 추정 그대로
   const ride = (r.steps || []).filter((x) => x.type !== "WALKING" && x.name);
@@ -1111,6 +1193,7 @@ function renderList() {
     } else {
       h += `<button class="nearcta" id="nearCta"><span>📍</span><div><b>내 주변 지금 갈 만한 곳</b><small>현재 위치로 가까운 ${state.month}월 제철 맛집을 보여줘요</small></div><em>›</em></button>`;
     }
+    if (cloudUser) h += `<button class="nearcta vcta" id="voteCta"><span>🍻</span><div><b>약속 잡기</b><small>친구들 출발지를 모아 모두 가기 편한 3곳에 투표해요</small></div><em>›</em></button>`;
   }
   if (!state.q && foods.some((x) => x.n)) {
     h += `<div class="ghead">🔥 ${state.month}월 제철 음식 · 눌러서 가게 보기</div><div class="foodstrip">${foods.filter((x) => x.n).map(foodCard).join("")}</div>`;
@@ -1177,6 +1260,7 @@ $("#pList").addEventListener("click", (e) => {
   if (e.target.id === "authBtn") return openAuth();
   if (e.target.id === "more") { listLimit += 100; renderList(); return; }
   if (e.target.closest("#nearCta")) return useGps();
+  if (e.target.closest("#voteCta")) return openVoteNew();
   const fd = e.target.closest("[data-food]"); if (fd) return setFood(state.food === fd.dataset.food ? null : fd.dataset.food);
   if (e.target.id === "foodBack") { if (history.state && history.state.food) history.back(); else { state.food = null; refresh(); } return; }
   if (e.target.closest("[data-season-all]")) { state.season = true; refresh(); $("#pList").scrollTop = 0; return; }
@@ -1271,9 +1355,11 @@ function setFocusKeep(f) { const s = state.selected; setFocus(f); state.selected
 
 // 뒤로 가기: 브라우저 뒤로/아이폰 가장자리 스와이프, Esc, 상세 화면에서 오른쪽으로 쓸기
 addEventListener("popstate", (e) => {
-  const id = e.state && e.state.detail;
-  if (id) return select(places.find((x) => x.id === id) || null, true);
+  const id = e.state && e.state.detail, vid = e.state && e.state.vote;
+  if (id) { if (voteOn()) hideVote(true); return select(places.find((x) => x.id === id) || null, true); }
   if (state.selected) select(null, true);
+  if (vid) return showVote(vid);
+  if (VS.id) hideVote();
   const food = e.state && e.state.food;
   if ((food || null) !== state.food) { state.food = food || null; refresh(); }
 });
@@ -1281,6 +1367,8 @@ addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if ($("#locModal").classList.contains("on")) return closeLoc();
   if ($("#authModal").classList.contains("on")) return closeAuth();
+  if ($("#voteModal").classList.contains("on")) return closeVoteNew();
+  if (voteOn()) return closeVote();
   if (state.selected) return select(null);
   if (state.food) { state.food = null; return refresh(); }
   if (state.focus.type !== "home") $("#crumb").click();
@@ -1427,6 +1515,270 @@ async function submitLoc() {
 $("#locGo").onclick = submitLoc;
 $("#locInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitLoc(); });
 
+// ---------- 약속·투표 ----------
+// 저장은 Supabase 함수(supabase/votes.sql)로만. 투표 ID(32자)를 아는 사람만 그 투표 하나를 읽고 쓴다.
+// 친구는 로그인 없이 이름 + 출발지. 이 기기가 누구인지는 localStorage `vote:{id}` = {pid, token, choice}.
+const VS = { id: null, data: null, timer: 0, sig: "", computing: false, prog: null, gps: null, msg: "" };
+const VERR = { name_taken: "이미 있는 이름이에요. 다른 이름으로 해 주세요", full: "인원이 다 찼어요", not_gathering: "모집이 이미 끝났어요",
+  not_found: "없는 약속이에요", not_voting: "지금은 투표할 수 없어요", need_two: "2명 이상 모여야 시작할 수 있어요",
+  login_required: "로그인해야 만들 수 있어요", not_allowed: "이 기기에서는 할 수 없어요" };
+const verr = (e) => { const k = Object.keys(VERR).find((x) => e && String(e.message || "").includes(x)); return k ? VERR[k] : "잠시 뒤에 다시 해 주세요"; };
+const voteLink = (id) => `${location.origin}${location.pathname}#v=${id}`;
+const myEntry = (d) => { const m = store.get(`vote:${d.id}`); return m && d.people.some((u) => u.pid === m.pid) ? m : null; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const voteOn = () => $("#votePage").classList.contains("on");
+
+function openVote(id) { history.pushState({ vote: id }, "", `#v=${id}`); showVote(id); }
+function showVote(id) {
+  if (VS.id !== id) {
+    Object.assign(VS, { id, data: null, sig: "", prog: null, msg: "" });
+    $("#vBody").innerHTML = `<div class="vbar dbar"><button class="back" id="vClose">‹ 지도로</button></div><div class="vcalc"><span class="spin"></span><div><b>약속을 불러오는 중이에요</b></div></div>`;
+  }
+  $("#votePage").classList.add("on");
+  loadVote();
+}
+function hideVote(keep) { $("#votePage").classList.remove("on"); clearTimeout(VS.timer); if (!keep) VS.id = null; }
+function closeVote() {
+  if (history.state && history.state.vote && !history.state.root) return history.back();
+  history.replaceState({}, "", location.pathname + location.search);
+  hideVote();
+}
+async function loadVote() {
+  clearTimeout(VS.timer);
+  const id = VS.id; if (!id) return;
+  if (!sb) return voteError("이 화면에선 약속을 열 수 없어요");
+  const { data, error } = await sb.rpc("get_vote", { p_id: id });
+  if (id !== VS.id) return;
+  if (error) { if (!VS.data) voteError("약속을 불러오지 못했어요. 인터넷 연결을 확인해 주세요"); }
+  else if (!data) return voteError("없는 약속이에요. 링크를 다시 확인해 주세요");
+  else { VS.data = data; renderVote(); maybeCompute(); }
+  if (voteOn() && (!VS.data || VS.data.status !== "closed")) VS.timer = setTimeout(loadVote, document.hidden ? 15000 : 4000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && voteOn()) loadVote(); });
+function voteError(msg) {
+  $("#vBody").innerHTML = `<div class="vbar dbar"><button class="back" id="vClose">‹ 지도로</button></div><div class="vtitle">🍻 약속</div><div class="group"><div class="empty">${esc(msg)}</div></div>`;
+}
+
+// 다 모였으면 이 기기가 계산을 맡아 본다 (한 기기만 맡게 되고, 2분 넘게 멈추면 다른 기기가 이어받음)
+async function maybeCompute() {
+  const d = VS.data; if (!d || VS.computing) return;
+  if (!myEntry(d) && !d.is_owner) return;
+  const ready = (d.status === "gather" && d.people.length >= d.size && d.people.length >= 2) || (d.status === "computing" && d.computing_stale);
+  if (!ready) return;
+  VS.computing = true;
+  try {
+    const { data: mine } = await sb.rpc("claim_compute", { p_id: d.id });
+    if (mine) await computeCandidates(d);
+  } catch { toast("후보를 고르지 못했어요. 잠시 뒤에 다시 해 볼게요"); }
+  VS.computing = false; VS.prog = null;
+  loadVote();
+}
+async function computeCandidates(d) {
+  const ppl = d.people;
+  // 1) 954곳 전부 거리로 낸 대략 시간 합 → 6곳만 남김
+  const pool = places.map((p) => ({ p, sum: ppl.reduce((s, u) => s + estimate(u, p).min, 0) })).sort((a, b) => a.sum - b.sum).slice(0, 6);
+  // 2) 그 6곳만 실제 대중교통 경로 (네이버에 새로 물을 때마다 0.6초 쉼)
+  const total = pool.length * ppl.length; let done = 0;
+  VS.prog = { done, total }; renderVote(true);
+  for (const c of pool) {
+    c.times = {};
+    for (const u of ppl) {
+      const { r, fresh } = await realRoute(u, c.p);
+      c.times[u.pid] = r.ok && r.min ? { min: r.min, real: true } : { min: estimate(u, c.p).min, real: false };
+      VS.prog = { done: ++done, total }; renderVote(true);
+      if (fresh) await sleep(600);
+    }
+    const ms = Object.values(c.times).map((t) => t.min);
+    c.sum = ms.reduce((a, b) => a + b, 0); c.max = Math.max(...ms);
+  }
+  pool.sort((a, b) => a.sum - b.sum || a.max - b.max);
+  const cands = pool.slice(0, 3).map(({ p, sum, times }) => ({ id: p.id, name: p.name, addr: p.addr || "", phone: p.phone || "",
+    kind: p.kind || p.cat || "", area: `${p.region || ""} ${p.area || ""}`.trim(), sum, times }));
+  const { error } = await sb.rpc("save_candidates", { p_id: d.id, p_cands: cands });
+  if (error) throw error;
+}
+
+const ptimesHTML = (d, c, me) => `<div class="ptimes">${d.people.map((u) => { const t = c.times && c.times[u.pid];
+  return `<span>${esc(u.name)}${me && me.pid === u.pid ? "(나)" : ""} <b>${t ? (t.real ? "" : "약 ") + fmtMin(t.min) : "-"}</b></span>`; }).join("")}</div>`;
+function renderVote(progOnly) {
+  const d = VS.data; if (!d) return;
+  if (progOnly && $("#vProg") && VS.prog) {
+    $("#vProg").style.width = `${(VS.prog.done / VS.prog.total) * 100}%`;
+    $("#vProgTxt").textContent = `대중교통 경로 ${VS.prog.done}/${VS.prog.total}`;
+    return;
+  }
+  const me = myEntry(d), n = d.people.length;
+  const sig = JSON.stringify([d, me, VS.msg, !!VS.prog, VS.computing]);
+  if (sig === VS.sig) return;
+  VS.sig = sig;
+  // 입력 중인 칸은 다시 그려도 그대로
+  const keep = { name: $("#vName") && $("#vName").value, loc: $("#vLoc") && $("#vLoc").value, focus: document.activeElement && document.activeElement.id };
+  const sub = d.status === "gather" ? `${n}/${d.size}명 모였어요` : d.status === "computing" ? "후보를 고르고 있어요"
+    : d.status === "voting" ? `${d.people.filter((u) => u.voted).length}/${n}명 투표했어요` : "투표가 끝났어요";
+  let h = `<div class="vbar dbar"><button class="back" id="vClose">‹ 지도로</button></div>
+    <div class="vtitle">🍻 ${esc(d.title)}</div><div class="vsub">${sub}</div>`;
+  if (d.status === "gather") {
+    h += `<div class="vprog">${Array.from({ length: d.size }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div>`;
+    if (!me && n < d.size) {
+      h += `<div class="vform"><h4>이름과 출발지를 알려 주세요</h4>
+        <input id="vName" placeholder="이름" maxlength="20" autocomplete="nickname" enterkeyhint="next">
+        <div class="lrow"><input id="vLoc" placeholder="출발지 (예: 강남역, 성수동)" maxlength="40" enterkeyhint="go"><button id="vGps">📍 현재 위치</button></div>
+        <div class="vmsg" id="vMsg">${esc(VS.msg)}</div>
+        <button class="vbtn" id="vJoin">참여하기</button></div>`;
+    }
+    h += `<div class="ghead">모인 사람</div><div class="group">${d.people.map((u) => `<div class="row vperson"><span class="ico">${esc([...u.name][0])}</span>
+      <span class="rmain"><div class="rname">${esc(u.name)}${me && me.pid === u.pid ? '<span class="me">나</span>' : ""}</div><div class="rsub">📍 ${esc(u.label)}</div></span>
+      ${me && me.pid === u.pid ? '<button class="leave" id="vLeave">빠지기</button>' : ""}</div>`).join("")}
+      ${Array.from({ length: Math.max(0, d.size - n) }, () => `<div class="row vperson vempty"><span class="ico">?</span><span class="rmain"><div class="rsub">기다리는 중</div></span></div>`).join("")}</div>`;
+    h += `<div class="vnote">모두 모이면 각자 출발지에서 대중교통 시간 합이 가장 작은 내 맛집 3곳을 자동으로 골라요. 출발지는 이 링크를 받은 사람에게만 보여요.</div>`;
+    h += `<button class="vbtn ${me || d.is_owner ? "" : "plain"}" id="vShare">🔗 친구에게 링크 보내기</button>`;
+    if (d.is_owner && n >= 2 && n < d.size) h += `<button class="vbtn plain" id="vStart">지금 ${n}명으로 시작하기</button>`;
+  } else if (d.status === "computing") {
+    const p = VS.prog;
+    h += `<div class="vcalc"><span class="spin"></span><div style="flex:1"><b>모두 가기 편한 곳을 찾고 있어요</b>
+      <small id="vProgTxt">${p ? `대중교통 경로 ${p.done}/${p.total}` : "한 사람 폰에서 계산 중이에요. 30초쯤 걸려요"}</small>
+      ${p ? `<div class="vbar2"><i id="vProg" style="width:${(p.done / p.total) * 100}%"></i></div>` : ""}</div></div>
+      ${p ? `<div class="vnote">이 화면을 닫지 말아 주세요.</div>` : ""}`;
+  } else if (d.status === "voting") {
+    h += `<div class="vnote">${me ? "한 곳을 골라 주세요. 모두 투표하기 전에는 바꿀 수 있어요." : "참여한 사람만 투표할 수 있어요."} 시간은 지금 출발 기준이에요.</div>`;
+    h += (d.candidates || []).map((c, i) => `<div class="cand ${me && me.choice === c.id ? "mine" : ""}" style="--d:${i * 70}ms">
+      <div class="ch"><span class="cn">${["🥇", "🥈", "🥉"][i] || ""} ${esc(c.name)}</span><span class="cs">합 ${fmtMin(c.sum)}</span></div>
+      <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div>
+      ${ptimesHTML(d, c, me)}
+      <div class="cact">${me ? `<button class="pick" data-pick="${esc(c.id)}">${me.choice === c.id ? "✓ 내 투표" : "여기로 투표"}</button>` : ""}<button class="see" data-see="${esc(c.id)}">가게 보기</button></div>
+    </div>`).join("");
+    h += `<div class="ghead">투표 현황</div><div class="group">${d.people.map((u) => `<div class="row vperson"><span class="ico">${esc([...u.name][0])}</span>
+      <span class="rmain"><div class="rname">${esc(u.name)}${me && me.pid === u.pid ? '<span class="me">나</span>' : ""}</div></span>
+      ${u.voted ? '<span class="ok">✓ 투표함</span>' : '<span class="wait">기다리는 중</span>'}</div>`).join("")}</div>`;
+    h += `<button class="vbtn plain" id="vShare">🔗 링크 다시 보내기</button>`;
+  } else {
+    const cs = d.candidates || [], w = cs.find((c) => c.id === d.winner) || cs[0];
+    const votesOf = (c) => d.people.filter((u) => u.choice === c.id);
+    if (w) {
+      h += `<div class="vwin"><small>🎉 여기로 정해졌어요 · ${votesOf(w).length}표</small><div class="wn">${esc(w.name)}</div>
+        <div class="wk">${esc([w.kind, w.area].filter(Boolean).join(" · "))} · 이동시간 합 ${fmtMin(w.sum)}</div>${ptimesHTML(d, w, me)}</div>
+        <div class="group">
+          <div class="info"><span class="ii">📍</span><div class="iv"><small>주소</small><div>${esc(w.addr) || "-"}</div></div>${w.addr ? `<button class="copy" data-copy="${esc(w.addr)}">복사</button>` : ""}</div>
+          <div class="info"><span class="ii">📞</span><div class="iv"><small>전화번호</small><div>${w.phone ? `<a href="tel:${esc(w.phone)}">${esc(w.phone)}</a>` : "정보 없음"}</div></div>${w.phone ? `<button class="copy" data-copy="${esc(w.phone)}">복사</button>` : ""}</div>
+        </div>
+        <button class="vbtn plain" data-see="${esc(w.id)}">메뉴·후기 보기</button>
+        <button class="vbtn plain" id="vShare">🔗 결과 링크 보내기</button>`;
+      const others = cs.filter((c) => c !== w);
+      if (others.length) h += `<div class="ghead" style="margin-top:22px">다른 후보</div>${others.map((c) => `<div class="cand"><div class="ch"><span class="cn">${esc(c.name)}</span><span class="cs">합 ${fmtMin(c.sum)}</span></div>
+        <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div><div class="cvotes"><b>${votesOf(c).length}표</b>${votesOf(c).length ? " · " + votesOf(c).map((u) => esc(u.name)).join(", ") : ""}</div></div>`).join("")}`;
+      h += `<div class="vnote" style="margin-top:12px">${esc(w.name)}에 투표: ${votesOf(w).map((u) => esc(u.name)).join(", ") || "-"}</div>`;
+    }
+  }
+  $("#vBody").innerHTML = h;
+  if (keep.name != null && $("#vName")) $("#vName").value = keep.name;
+  else if ($("#vName") && store.get("voteName")) $("#vName").value = store.get("voteName");
+  if (keep.loc != null && $("#vLoc")) $("#vLoc").value = keep.loc;
+  else if ($("#vLoc") && state.me) { $("#vLoc").value = state.me.label; VS.gps = state.me; }
+  if (keep.focus && $("#" + keep.focus)) $("#" + keep.focus).focus();
+}
+function vmsg(t) { VS.msg = t; const m = $("#vMsg"); if (m) m.textContent = t; }
+async function joinVote() {
+  const d = VS.data, name = $("#vName").value.trim(), loc = $("#vLoc").value.trim();
+  if (!name) return vmsg("이름을 넣어 주세요");
+  if (!loc) return vmsg("출발지를 넣어 주세요");
+  let g = VS.gps && VS.gps.label === loc ? VS.gps : null;
+  if (!g) {
+    vmsg("출발지 찾는 중…");
+    try { g = await geocode(loc); } catch { g = null; }
+    if (!g) return vmsg("출발지를 못 찾았어요. 역 이름이나 동 이름으로 해 볼까요?");
+  }
+  if (g.lat < 33 || g.lat > 39 || g.lng < 124 || g.lng > 132) return vmsg("국내 출발지만 돼요");
+  vmsg("참여하는 중…");
+  const { data, error } = await sb.rpc("join_vote", { p_id: d.id, p_name: name, p_label: String(g.label).slice(0, 40), p_lat: g.lat, p_lng: g.lng });
+  if (error) return vmsg(verr(error));
+  store.set(`vote:${d.id}`, { pid: data.pid, token: data.token });
+  store.set("voteName", name);
+  VS.msg = ""; toast("참여했어요");
+  loadVote();
+}
+async function shareVote() {
+  const d = VS.data, url = voteLink(d.id);
+  const text = d.status === "closed" ? `${d.title} 장소가 정해졌어요` : `${d.title} 어디서 먹을지 정해요. 이름이랑 출발지만 넣어 주세요`;
+  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+    try { await navigator.share({ title: `한 점 · ${d.title}`, text, url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast("링크를 복사했어요. 카톡에 붙여 넣으세요"); } catch { window.prompt("이 링크를 복사해 보내 주세요", url); }
+}
+function peekPlace(id) {
+  const p = places.find((x) => x.id === id);
+  if (!p) return toast("지금 지도에 없는 가게예요");
+  hideVote(true); select(p);
+}
+$("#vBody").addEventListener("click", async (e) => {
+  const t = e.target, d = VS.data;
+  if (t.closest("#vClose")) return closeVote();
+  if (!d) return;
+  if (t.id === "vJoin") return joinVote();
+  if (t.id === "vShare") return shareVote();
+  if (t.id === "vGps") {
+    if (!navigator.geolocation) return vmsg("이 브라우저는 위치를 지원하지 않아요");
+    vmsg("위치 확인 중…");
+    return navigator.geolocation.getCurrentPosition(
+      (pos) => { VS.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: "현재 위치" }; $("#vLoc").value = "현재 위치"; vmsg(""); },
+      () => vmsg("위치 권한이 없어요. 출발지를 직접 넣어 주세요"), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }
+  if (t.id === "vLeave") {
+    const m = myEntry(d); if (!m || !confirm("이 약속에서 빠질까요?")) return;
+    const { error } = await sb.rpc("leave_vote", { p_id: d.id, p_pid: m.pid, p_token: m.token });
+    if (error) return toast(verr(error));
+    store.set(`vote:${d.id}`, null); return loadVote();
+  }
+  if (t.id === "vStart") {
+    const { error } = await sb.rpc("start_now", { p_id: d.id });
+    if (error) return toast(verr(error));
+    return loadVote();
+  }
+  const pk = t.closest("[data-pick]");
+  if (pk) {
+    const m = myEntry(d); if (!m) return;
+    const { data, error } = await sb.rpc("cast_vote", { p_id: d.id, p_pid: m.pid, p_token: m.token, p_choice: pk.dataset.pick });
+    if (error) return toast(verr(error));
+    store.set(`vote:${d.id}`, { ...m, choice: pk.dataset.pick });
+    if (data) { VS.data = data; renderVote(); }
+    toast(data && data.status === "closed" ? "🎉 모두 투표했어요" : "✓ 투표했어요");
+    return;
+  }
+  const see = t.closest("[data-see]"); if (see) return peekPlace(see.dataset.see);
+  const c = t.closest("[data-copy]");
+  if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); toast("복사했어요"); } catch { toast("복사하지 못했어요"); } }
+});
+$("#vBody").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  if (e.target.id === "vName") $("#vLoc").focus();
+  if (e.target.id === "vLoc") joinVote();
+});
+$("#vBody").addEventListener("input", (e) => { if (e.target.id === "vLoc" && VS.gps && e.target.value !== VS.gps.label) VS.gps = null; });
+
+// 약속 만들기 (로그인한 나만)
+let vSize = 4;
+const VSTAT = { gather: "모으는 중", computing: "후보 고르는 중", voting: "투표 중", closed: "끝남" };
+async function openVoteNew() {
+  if (!cloudUser) return openAuth();
+  $("#vNewMsg").textContent = ""; $("#vSize").textContent = `${vSize}명`; $("#vRecent").innerHTML = "";
+  $("#voteModal").classList.add("on");
+  const { data } = await sb.rpc("my_votes");
+  if (data && data.length) $("#vRecent").innerHTML = `<div class="ghead" style="margin-top:18px">최근 약속</div><div class="group">${data.slice(0, 5).map((v) => `
+    <button class="row" data-vote="${esc(v.id)}"><span class="rmain"><div class="rname">${esc(v.title)}</div><div class="rsub">${VSTAT[v.status]} · ${v.n}/${v.size}명 · ${new Date(v.created_at).toLocaleDateString("ko-KR")}</div></span><span class="chev">›</span></button>`).join("")}</div>`;
+}
+const closeVoteNew = () => $("#voteModal").classList.remove("on");
+$("#voteDim").onclick = closeVoteNew;
+$("#vMinus").onclick = () => { vSize = Math.max(2, vSize - 1); $("#vSize").textContent = `${vSize}명`; };
+$("#vPlus").onclick = () => { vSize = Math.min(12, vSize + 1); $("#vSize").textContent = `${vSize}명`; };
+$("#vRecent").addEventListener("click", (e) => { const r = e.target.closest("[data-vote]"); if (r) { closeVoteNew(); openVote(r.dataset.vote); } });
+$("#vCreate").onclick = async () => {
+  const title = $("#vTitle").value.trim() || `${state.month}월 약속`;
+  $("#vNewMsg").textContent = "만드는 중…";
+  const { data, error } = await sb.rpc("create_vote", { p_title: title, p_size: vSize });
+  if (error) return ($("#vNewMsg").textContent = verr(error));
+  $("#vTitle").value = ""; closeVoteNew(); openVote(data);
+  toast("링크를 만들었어요. 나도 출발지를 넣어 주세요");
+};
+
 // ---------- 레이아웃: 지도 영역 크기에 맞춰 그린다 ----------
 let cur = "full";
 function snap() {}               // (예전 바텀시트용, 지금은 목록이 따로 있어서 할 일 없음)
@@ -1448,11 +1800,18 @@ $("#mTxt").textContent = state.month + "월";
 if (state.me) { $("#locTxt").textContent = state.me.label; $("#locBtn").classList.add("on"); }
 refresh(); layout();
 syncPoll();
+// 투표 링크(#v=…)로 들어왔으면 투표 화면부터
+function voteFromHash() {
+  const m = location.hash.match(/^#v=([0-9a-f]{32})$/);
+  if (m && m[1] !== VS.id) { history.replaceState({ vote: m[1], root: true }, "", location.hash); showVote(m[1]); }
+}
+voteFromHash();
+addEventListener("hashchange", voteFromHash);
 // 첫 화면 '내 주변 지금 갈 만한 곳': 위치 권한을 이미 줬으면 바로 현재 위치로
 try {
   navigator.permissions && navigator.permissions.query({ name: "geolocation" }).then((r) => { if (r.state === "granted") useGps(true); }).catch(() => {});
 } catch {}
-setTimeout(() => { const n = places.filter((p) => p.tags.length).length; if (n) toast(`🔥 ${state.month}월 제철 맛집 ${n}곳`); }, 2200);
+setTimeout(() => { const n = places.filter((p) => p.tags.length).length; if (n && !voteOn()) toast(`🔥 ${state.month}월 제철 맛집 ${n}곳`); }, 2200);
 })();
 </script>
 </body>
