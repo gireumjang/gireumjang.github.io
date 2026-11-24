@@ -1,4 +1,6 @@
 # app/ 폴더를 GitHub Pages 로 배포 (main 에 push 될 때마다)
+# 올리기(build)와 게시(deploy)를 다른 job 으로 나눈다: 한 job 안에서 하면 방금 올린 파일을
+# 게시 단계가 아직 못 찾아 "No artifacts named github-pages" 로 실패할 때가 있다.
 name: pages
 on:
   push:
@@ -11,18 +13,22 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: app
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v5
