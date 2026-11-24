@@ -1611,6 +1611,30 @@ async function computeCandidates(d) {
   if (error) throw error;
 }
 
+// 보여 주는 건 평균 이동시간 (순서는 합 기준이라 같음)
+const avgMin = (c) => { const n = Object.keys(c.times || {}).length; return n ? Math.round(c.sum / n) : c.sum; };
+// 좌표 → '성동구 성수1가1동' (행정동 경계로 찾고, 안 되면 가까운 시·군·구)
+function inPolys(polys, x, y) {
+  let inside = false;
+  for (const r of polys) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const [xi, yi] = r[i], [xj, yj] = r[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+async function placeName(lat, lng) {
+  const prov = provinces.find((f) => inPolys(f.polys, lng, lat));
+  if (prov) {
+    try {
+      dongCache[prov.code] ||= await fetch(`dong/${prov.code}.json`).then((r) => r.json());
+      for (const [muni, list] of Object.entries(dongCache[prov.code]))
+        for (const [name, , polys] of list) if (inPolys(polys, lng, lat)) return `${muni.replace(/^.+시(.+[구])$/, "$1")} ${name}`;
+    } catch {}
+  }
+  let best = null, bd = 1e9;
+  for (const m of munis) { const dd = km({ lat, lng }, { lat: m.c[1], lng: m.c[0] }); if (dd < bd) { bd = dd; best = m; } }
+  return best && bd < 15 ? `${best.name} 근처` : "현재 위치";
+}
 const ptimesHTML = (d, c, me) => `<div class="ptimes">${d.people.map((u) => { const t = c.times && c.times[u.pid];
   return `<span>${esc(u.name)}${me && me.pid === u.pid ? "(나)" : ""} <b>${t ? (t.real ? "" : "약 ") + fmtMin(t.min) : "-"}</b></span>`; }).join("")}</div>`;
 function renderVote(progOnly) {
@@ -1655,7 +1679,7 @@ function renderVote(progOnly) {
   } else if (d.status === "voting") {
     h += `<div class="vnote">${me ? "한 곳을 골라 주세요. 모두 투표하기 전에는 바꿀 수 있어요." : "참여한 사람만 투표할 수 있어요."} 시간은 지금 출발 기준이에요.</div>`;
     h += (d.candidates || []).map((c, i) => `<div class="cand ${me && me.choice === c.id ? "mine" : ""}" style="--d:${i * 70}ms">
-      <div class="ch"><span class="cn">${["🥇", "🥈", "🥉"][i] || ""} ${esc(c.name)}</span><span class="cs">합 ${fmtMin(c.sum)}</span></div>
+      <div class="ch"><span class="cn">${["🥇", "🥈", "🥉"][i] || ""} ${esc(c.name)}</span><span class="cs">평균 ${fmtMin(avgMin(c))}</span></div>
       <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div>
       ${ptimesHTML(d, c, me)}
       <div class="cact">${me ? `<button class="pick" data-pick="${esc(c.id)}">${me.choice === c.id ? "✓ 내 투표" : "여기로 투표"}</button>` : ""}<button class="see" data-see="${esc(c.id)}">가게 보기</button></div>
@@ -1671,7 +1695,7 @@ function renderVote(progOnly) {
     const votesOf = (c) => d.people.filter((u) => u.choice === c.id);
     if (w) {
       h += `<div class="vwin"><small>🎉 여기로 정해졌어요 · ${votesOf(w).length}표</small><div class="wn">${esc(w.name)}</div>
-        <div class="wk">${esc([w.kind, w.area].filter(Boolean).join(" · "))} · 이동시간 합 ${fmtMin(w.sum)}</div>${ptimesHTML(d, w, me)}</div>
+        <div class="wk">${esc([w.kind, w.area].filter(Boolean).join(" · "))} · 평균 ${fmtMin(avgMin(w))}</div>${ptimesHTML(d, w, me)}</div>
         <div class="group">
           <div class="info"><span class="ii">📍</span><div class="iv"><small>주소</small><div>${esc(w.addr) || "-"}</div></div>${w.addr ? `<button class="copy" data-copy="${esc(w.addr)}">복사</button>` : ""}</div>
           <div class="info"><span class="ii">📞</span><div class="iv"><small>전화번호</small><div>${w.phone ? `<a href="tel:${esc(w.phone)}">${esc(w.phone)}</a>` : "정보 없음"}</div></div>${w.phone ? `<button class="copy" data-copy="${esc(w.phone)}">복사</button>` : ""}</div>
@@ -1679,7 +1703,7 @@ function renderVote(progOnly) {
         <button class="vbtn plain" data-see="${esc(w.id)}">메뉴·후기 보기</button>
         <button class="vbtn plain" id="vShare">🔗 결과 링크 보내기</button>`;
       const others = cs.filter((c) => c !== w);
-      if (others.length) h += `<div class="ghead" style="margin-top:22px">다른 후보</div>${others.map((c) => `<div class="cand"><div class="ch"><span class="cn">${esc(c.name)}</span><span class="cs">합 ${fmtMin(c.sum)}</span></div>
+      if (others.length) h += `<div class="ghead" style="margin-top:22px">다른 후보</div>${others.map((c) => `<div class="cand"><div class="ch"><span class="cn">${esc(c.name)}</span><span class="cs">평균 ${fmtMin(avgMin(c))}</span></div>
         <div class="ck">${esc([c.kind, c.area].filter(Boolean).join(" · "))}</div><div class="cvotes"><b>${votesOf(c).length}표</b>${votesOf(c).length ? " · " + votesOf(c).map((u) => esc(u.name)).join(", ") : ""}</div></div>`).join("")}`;
       const none = d.people.filter((u) => !u.choice);
       h += `<div class="vnote" style="margin-top:12px">${esc(w.name)}에 투표: ${votesOf(w).map((u) => esc(u.name)).join(", ") || "-"}${none.length ? `<br>투표 안 함: ${none.map((u) => esc(u.name)).join(", ")}` : ""}</div>`;
@@ -1704,6 +1728,7 @@ async function joinVote() {
     if (!g) return vmsg("출발지를 못 찾았어요. 역 이름이나 동 이름으로 해 볼까요?");
   }
   if (g.lat < 33 || g.lat > 39 || g.lng < 124 || g.lng > 132) return vmsg("국내 출발지만 돼요");
+  if (g.label === "현재 위치") g = { ...g, label: (await placeName(g.lat, g.lng)).slice(0, 40) };
   vmsg("참여하는 중…");
   const { data, error } = await sb.rpc("join_vote", { p_id: d.id, p_name: name, p_label: String(g.label).slice(0, 40), p_lat: g.lat, p_lng: g.lng });
   if (error) return vmsg(verr(error));
@@ -1732,11 +1757,17 @@ $("#vBody").addEventListener("click", async (e) => {
   if (t.id === "vJoin") return joinVote();
   if (t.id === "vShare") return shareVote();
   if (t.id === "vGps") {
-    if (!navigator.geolocation) return vmsg("이 브라우저는 위치를 지원하지 않아요");
+    if (!navigator.geolocation) return vmsg("이 브라우저는 위치를 지원하지 않아요. 출발지를 직접 넣어 주세요");
     vmsg("위치 확인 중…");
-    return navigator.geolocation.getCurrentPosition(
-      (pos) => { VS.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: "현재 위치" }; $("#vLoc").value = "현재 위치"; vmsg(""); },
-      () => vmsg("위치 권한이 없어요. 출발지를 직접 넣어 주세요"), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+    return navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      const label = (await placeName(lat, lng)).slice(0, 40);
+      VS.gps = { lat, lng, label };
+      if ($("#vLoc")) $("#vLoc").value = label;
+      vmsg(`📍 ${label}(으)로 정했어요. 참여하기를 눌러 주세요`);
+    }, (err) => vmsg(err && err.code === 1 ? "위치 권한이 꺼져 있어요. 설정에서 켜거나 출발지를 직접 넣어 주세요"
+        : "위치를 찾지 못했어요. 출발지를 직접 넣어 주세요"),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   }
   if (t.id === "vLeave") {
     const m = myEntry(d); if (!m || !confirm("이 약속에서 빠질까요?")) return;
