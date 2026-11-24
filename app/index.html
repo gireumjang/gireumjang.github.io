@@ -119,7 +119,8 @@ header { flex: none; position: relative; z-index: 5;
   background: var(--bg); box-shadow: 0 .5px 0 var(--sep); }
 /* 로고(이미지): 헤더 가운데. 아이폰은 뒤로 버튼 줄~제목 줄에 걸쳐 가운데 */
 .toprow { position: relative; }
-.logo { position: absolute; left: 50%; top: 2px; transform: translateX(-50%); pointer-events: none; }
+.logo { position: absolute; left: 50%; top: 2px; transform: translateX(-50%); z-index: 1; transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.logo:active { transform: translateX(-50%) scale(.94); }
 .logo img { display: block; height: 62px; width: auto; }
 .logo .lg-dark { display: none; }
 @media (prefers-color-scheme: dark) { .logo .lg-light { display: none; } .logo .lg-dark { display: block; } }
@@ -352,7 +353,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 
   </div>
   </div>
-  <div class="logo"><img class="lg-light" src="logo-light.png" alt="한 점"><img class="lg-dark" src="logo-dark.png" alt="한 점"></div>
+  <button class="logo" id="logoHome" aria-label="한 점, 처음 화면으로"><img class="lg-light" src="logo-light.png" alt=""><img class="lg-dark" src="logo-dark.png" alt=""></button>
   <div class="searchrow">
     <label class="search" id="searchBox">
       <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -543,7 +544,8 @@ const matchQ = (p) => {
 };
 const passType = (p) => (!state.type || (p.types || []).includes(state.type));
 const passToggles = (p) => (!state.season || p.tags.length) &&(!state.food || p.tags.some((t) => t.key === state.food));
-const visible = (p) => inRegion(p) && matchQ(p) && passType(p) && passToggles(p);
+// 검색어가 있으면 지도가 어느 지역을 보고 있든 결과는 전국에서 (가게 하나 고른 뒤 다음 검색이 갇히지 않게)
+const visible = (p) => (state.q || inRegion(p)) && matchQ(p) && passType(p) && passToggles(p);
 const pinR = (p) => (p === state.selected ? 7 : p.tags.length ? 4.4 : 3);
 
 // ---------- 포커스(지역) ----------
@@ -770,7 +772,23 @@ let qt = 0;
 $("#q").addEventListener("input", (e) => {
   $("#searchBox").classList.toggle("has", !!e.target.value);
   clearTimeout(qt);
-  qt = setTimeout(() => { state.q = e.target.value.trim(); select(null); refresh(); if (state.q && cur === "peek") snap("half"); }, 120);
+  qt = setTimeout(() => {
+    const q = e.target.value.trim(), fresh = q && !state.q;
+    state.q = q; select(null);
+    if (fresh) { state.type = null; state.season = false; state.food = null; }  // 새 검색은 유형·제철 조건 없이
+    if (q && state.focus.type !== "home") setFocus({ type: "home" });           // 지도도 전국으로 돌아와 결과 핀이 다 보이게
+    refresh(); if (state.q && cur === "peek") snap("half");
+  }, 120);
+});
+
+// 로고: 처음 화면으로 (검색·필터·지역·확대 모두 초기화)
+$("#logoHome").addEventListener("click", () => {
+  $("#q").value = ""; $("#searchBox").classList.remove("has");
+  Object.assign(state, { q: "", type: null, season: false, food: null, sort: "default" });
+  listLimit = 60;
+  select(null);
+  setFocus({ type: "home" });
+  $("#pList").scrollTop = 0;
 });
 $("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
 $("#qx").addEventListener("click", (e) => { e.preventDefault(); $("#q").value = ""; $("#searchBox").classList.remove("has"); state.q = ""; refresh(); });
@@ -924,7 +942,9 @@ let listLimit = 60;
 function sorter() {
   if (state.sort === "near" && state.me) return (a, b) => km(state.me, a) - km(state.me, b);
   if (state.sort === "rating") return (a, b) => ((b.rating || 0) - (a.rating || 0)) || ((b.vr || 0) - (a.vr || 0));
-  return (a, b) => (closedToday(a) - closedToday(b)) || (prefBoost(b) - prefBoost(a)) ||((b.vr || 0) - (a.vr || 0)) || (b.saved - a.saved);
+  const q = state.q.toLowerCase();
+  const nameHit = (p) => (q && p.name.toLowerCase().includes(q) ? 1 : 0);  // 검색할 땐 가게 이름이 맞는 곳이 먼저
+  return (a, b) => (nameHit(b) - nameHit(a)) || (closedToday(a) - closedToday(b)) || (prefBoost(b) - prefBoost(a)) ||((b.vr || 0) - (a.vr || 0)) || (b.saved - a.saved);
 }
 // 이번 달 제철 음식 카드 (가게 수 포함). scope: 지역·유형 조건만 적용
 function seasonFoods() {
