@@ -313,22 +313,23 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .info .copy { flex: none; color: var(--pin); font-size: 15px; font-weight: 500; }
 
 /* location sheet (modal) */
-#locModal { position: fixed; inset: 0; z-index: 30; display: none; }
-#locModal.on { display: block; }
-#locModal .dim { position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fade .3s both; }
-#locModal .card { position: absolute; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); border-radius: 16px;
+.smodal { position: fixed; inset: 0; z-index: 30; display: none; }
+.smodal.on { display: block; }
+.smodal .dim { position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fade .3s both; }
+.smodal .card { position: absolute; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); border-radius: 16px;
   background: var(--bg); padding: 18px 16px 16px; animation: up .45s cubic-bezier(.32,.72,0,1) both; max-width: 430px; margin: 0 auto; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes up { from { transform: translateY(110%); } }
-#locModal h3 { margin: 0 0 4px; font-size: 20px; }
-#locModal p { margin: 0 0 14px; font-size: 13px; color: var(--label2); line-height: 1.4; }
-#locModal .bigbtn { display: block; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; margin-top: 10px; }
-#locModal .primary { background: var(--pin); color: #fff; }
-#locModal .plain { background: var(--fill); }
-#locModal .field { display: flex; gap: 8px; }
-#locModal .field input { flex: 1; height: 50px; border-radius: 12px; background: var(--cell); padding: 0 14px; font-size: 17px; outline: none; }
-#locModal .field button { flex: none; width: 74px; border-radius: 12px; background: var(--fill); font-weight: 600; color: var(--pin); }
-#locModal .msg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
+.smodal h3 { margin: 0 0 4px; font-size: 20px; }
+.smodal p { margin: 0 0 14px; font-size: 13px; color: var(--label2); line-height: 1.4; }
+.smodal .bigbtn { display: block; width: 100%; height: 50px; border-radius: 12px; font-size: 17px; font-weight: 600; margin-top: 10px; }
+.smodal .primary { background: var(--pin); color: #fff; }
+.smodal .plain { background: var(--fill); }
+.smodal .field { display: flex; gap: 8px; }
+.smodal .field input { flex: 1; min-width: 0; height: 50px; border-radius: 12px; background: var(--cell); padding: 0 14px; font-size: 17px; outline: none; }
+.smodal .field button { flex: none; width: 74px; border-radius: 12px; background: var(--fill); font-weight: 600; color: var(--pin); }
+.smodal .msg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
+.smodal [hidden] { display: none !important; }
 
 /* toast */
 #toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 40; transform: translate(-50%, -90px);
@@ -385,7 +386,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 </div>
 </div>
 
-<div id="locModal">
+<div id="locModal" class="smodal">
   <div class="dim" id="locDim"></div>
   <div class="card">
     <h3>내 위치</h3>
@@ -396,8 +397,24 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
     <button class="bigbtn plain" id="locClear">위치 지우기</button>
   </div>
 </div>
+<div id="authModal" class="smodal">
+  <div class="dim" id="authDim"></div>
+  <div class="card">
+    <h3 id="authTitle">기록 저장 로그인</h3>
+    <p id="authDesc"></p>
+    <div id="authForm">
+      <div class="field"><input id="authEmail" type="email" placeholder="name@example.com" autocomplete="username" enterkeyhint="next"></div>
+      <div class="field" style="margin-top:8px"><input id="authPw" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" enterkeyhint="go"></div>
+      <div class="msg" id="authMsg"></div>
+      <button class="bigbtn primary" id="authIn">로그인</button>
+      <button class="bigbtn plain" id="authUp">처음이면 계정 만들기</button>
+    </div>
+    <button class="bigbtn plain" id="authOut" hidden>로그아웃</button>
+  </div>
+</div>
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="geo.js"></script>
 <script src="places.js"></script>
@@ -877,12 +894,87 @@ const prefBoost = (p) => Math.max(0, ...(p.types || []).map((t) => prefs[t] || 0
 function markVisit(p) {
   const today = new Date().toISOString().slice(0, 10);
   visits[p.id] = [...(visits[p.id] || []), today]; store.set("visits", visits); prefs = typePrefs();
+  cloudSave("visits");
 }
 function undoVisit(p) {
   const arr = visits[p.id] || []; arr.pop();
   if (arr.length) visits[p.id] = arr; else delete visits[p.id];
   store.set("visits", visits); prefs = typePrefs();
+  cloudSave("visits");
 }
+
+// ---------- 로그인하면 방문 기록·메모를 Supabase에 (kv 테이블, RLS로 본인만) ----------
+const CFG = window.HANJEOM_CONFIG || {};
+const sb = CFG.supabaseUrl && window.supabase ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey) : null;
+let cloudUser = null, pulledFor = null;
+const saveTimers = {};
+function cloudSave(key) {
+  if (!sb || !cloudUser) return;
+  clearTimeout(saveTimers[key]);
+  saveTimers[key] = setTimeout(async () => {
+    const { error } = await sb.from("kv").upsert({ user_id: cloudUser.id, key, value: key === "visits" ? visits : notes, updated_at: new Date().toISOString() });
+    if (error) toast("기록을 저장하지 못했어요. 인터넷 연결을 확인해 주세요");
+  }, 600);
+}
+// 이 기기에서 처음 로그인할 때만 합친다(방문은 가게마다 더 많이 기록된 쪽, 메모는 둘 다). 그다음부터는 클라우드가 기준.
+async function cloudPull() {
+  const { data, error } = await sb.from("kv").select("key,value");
+  if (error) return toast("기록을 불러오지 못했어요");
+  const got = Object.fromEntries((data || []).map((r) => [r.key, r.value]));
+  const cv = got.visits || {}, cn = got.notes || {};
+  const mergedKey = `cloudMerged:${cloudUser.id}`;
+  if (!store.get(mergedKey)) {
+    for (const id in visits) if (!cv[id] || visits[id].length > cv[id].length) cv[id] = visits[id];
+    for (const id in notes) if (!cn[id]) cn[id] = notes[id];
+    store.set(mergedKey, true);
+  }
+  visits = cv; notes = cn;
+  store.set("visits", visits); store.set("notes", notes); prefs = typePrefs();
+  cloudSave("visits"); cloudSave("notes");
+  renderList(); stylePins(); if (state.selected) renderDetail(state.selected);
+}
+if (sb) sb.auth.onAuthStateChange((ev, session) => {
+  cloudUser = session ? session.user : null;
+  showAuthState();
+  if (cloudUser && pulledFor !== cloudUser.id) { pulledFor = cloudUser.id; setTimeout(cloudPull, 0); }
+});
+function showAuthState() {
+  const b = $("#authBtn"); if (b) b.textContent = cloudUser ? "☁︎ 저장 중" : "☁︎ 로그인";
+  $("#authOut").hidden = !cloudUser;
+  $("#authTitle").textContent = cloudUser ? "기록이 저장되고 있어요" : "기록 저장 로그인";
+  $("#authDesc").textContent = cloudUser
+    ? `${cloudUser.email} 계정으로 방문 기록·메모가 저장돼요. 다른 기기에서도 같은 이메일로 로그인하면 똑같이 보여요.`
+    : "로그인하면 방문 기록·메모가 폰과 PC에서 똑같이 보여요. 친구에게 보낸 링크로는 기록이 보이지 않아요.";
+  $("#authForm").hidden = !!cloudUser;
+  if (sync.available || cloudUser) renderList();
+}
+function openAuth() { $("#authMsg").textContent = ""; $("#authPw").value = ""; showAuthState(); $("#authModal").classList.add("on"); }
+function closeAuth() { $("#authModal").classList.remove("on"); }
+$("#authDim").onclick = closeAuth;
+function authInput() {
+  const email = $("#authEmail").value.trim(), password = $("#authPw").value;
+  if (!/^\S+@\S+\.\S+$/.test(email)) { $("#authMsg").textContent = "이메일 주소를 확인해 주세요"; return null; }
+  if (password.length < 6) { $("#authMsg").textContent = "비밀번호는 6자 이상이에요"; return null; }
+  return { email, password };
+}
+$("#authIn").onclick = async () => {
+  const cred = authInput(); if (!cred) return;
+  $("#authMsg").textContent = "확인 중…";
+  const { error } = await sb.auth.signInWithPassword(cred);
+  if (error) return ($("#authMsg").textContent = /confirm/i.test(error.message) ? "메일로 온 확인 링크를 먼저 눌러 주세요"
+    : error.status === 429 ? "잠시 뒤에 다시 시도해 주세요" : "이메일이나 비밀번호가 맞지 않아요");
+  closeAuth(); toast("로그인했어요. 기록을 맞추는 중이에요");
+};
+$("#authUp").onclick = async () => {
+  const cred = authInput(); if (!cred) return;
+  $("#authMsg").textContent = "만드는 중…";
+  const { data, error } = await sb.auth.signUp({ ...cred, options: { emailRedirectTo: location.href.split("#")[0] } });
+  if (error) return ($("#authMsg").textContent = /not allowed|disabled/i.test(error.message) ? "새 계정 만들기가 꺼져 있어요" : /registered/i.test(error.message) ? "이미 있는 계정이에요. 로그인을 눌러 주세요" : "계정을 만들지 못했어요");
+  if (!data.session) return ($("#authMsg").textContent = "메일로 온 확인 링크를 누른 뒤 로그인해 주세요");
+  closeAuth(); toast("계정을 만들고 로그인했어요");
+};
+$("#authPw").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#authIn").click(); });
+$("#authOut").onclick = async () => { await sb.auth.signOut(); closeAuth(); toast("로그아웃했어요. 이 기기의 기록은 그대로 남아 있어요"); };
 
 // ---------- 실제 대중교통 (네이버 경로, 중계 서버 경유) ----------
 function transitProxy() {
@@ -1002,8 +1094,9 @@ function renderList() {
     $("#pList").innerHTML = h; return;
   }
   const title = state.q ? `“${esc(state.q)}”` : esc(where) + (state.type ? ` · ${TYPE[state.type].label}` : "");
-  const showSync = sync.available && f.type === "home" && !state.q && !state.type;
-  h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}</span></div>`;
+  const homeView = f.type === "home" && !state.q && !state.type;
+  const showSync = (sync.available || cloudUser) && homeView;
+  h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}${sb && homeView ? `<button class="syncbtn" id="authBtn">${cloudUser ? "☁︎ 저장 중" : "☁︎ 로그인"}</button>` : ""}</span></div>`;
   h += `<div class="seg" id="seg">
     <button data-sort="default" class="${state.sort === "default" ? "on" : ""}">추천순</button>
     <button data-sort="rating" class="${state.sort === "rating" ? "on" : ""}">별점순</button>
@@ -1052,8 +1145,25 @@ async function syncPoll() {
   if (first) renderList(); else showSyncState();
   if (s.running) setTimeout(syncPoll, 3000);
 }
+// 로컬 서버가 없으면(배포 사이트·폰) Supabase에 요청을 남기고, 켜져 있는 PC의 dev_server.py 가 가져가 처리한다
+async function startCloudSync() {
+  const { data, error } = await sb.from("sync_requests").insert({}).select("id").single();
+  if (error) return toast("동기화 요청을 남기지 못했어요");
+  sync.running = true; showSyncState();
+  toast("동기화를 요청했어요. PC에서 한 점 서버가 켜져 있으면 처리돼요");
+  pollCloudSync(data.id);
+}
+async function pollCloudSync(id) {
+  const { data } = await sb.from("sync_requests").select("status").eq("id", id).single();
+  if (data && (data.status === "done" || data.status === "failed")) {
+    sync.running = false; showSyncState();
+    return toast(data.status === "done" ? "동기화 끝 · 1~2분 뒤 새로고침하면 반영돼요" : "동기화가 실패했어요. PC에서 다시 해 주세요");
+  }
+  setTimeout(() => pollCloudSync(id), 15000);
+}
 async function startSync() {
   if (sync.running) return toast("이미 동기화하고 있어요");
+  if (!sync.available) return cloudUser ? startCloudSync() : openAuth();
   try {
     const r = await fetch("/api/sync", { method: "POST", headers: { "X-Hanjeom": "sync" } });
     if (!r.ok) throw new Error();
@@ -1064,6 +1174,7 @@ async function startSync() {
 }
 $("#pList").addEventListener("click", (e) => {
   if (e.target.id === "syncBtn") return startSync();
+  if (e.target.id === "authBtn") return openAuth();
   if (e.target.id === "more") { listLimit += 100; renderList(); return; }
   if (e.target.closest("#nearCta")) return useGps();
   const fd = e.target.closest("[data-food]"); if (fd) return setFood(state.food === fd.dataset.food ? null : fd.dataset.food);
@@ -1127,7 +1238,7 @@ $("#pDetail").addEventListener("input", (e) => {
   if (e.target.id !== "memo" || !state.selected) return;
   const v = e.target.value.trim();
   if (v) notes[state.selected.id] = e.target.value; else delete notes[state.selected.id];
-  store.set("notes", notes); fitMemo();
+  store.set("notes", notes); fitMemo(); cloudSave("notes");
 });
 $("#pDetail").addEventListener("click", async (e) => {
   if (e.target.id === "visitBtn" && state.selected) { markVisit(state.selected); renderDetail(state.selected); renderList(); stylePins(); toast("✓ 방문 기록했어요"); return; }
@@ -1169,6 +1280,7 @@ addEventListener("popstate", (e) => {
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if ($("#locModal").classList.contains("on")) return closeLoc();
+  if ($("#authModal").classList.contains("on")) return closeAuth();
   if (state.selected) return select(null);
   if (state.food) { state.food = null; return refresh(); }
   if (state.focus.type !== "home") $("#crumb").click();

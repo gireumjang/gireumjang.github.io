@@ -1,5 +1,6 @@
 """로컬 개발 서버: app/ 정적 파일 + /api/transit (네이버 지도 대중교통 경로를 대신 받아 요약해서 돌려줌)
-+ /api/sync (앱의 동기화 버튼 → scripts/sync.py 실행, 진행 상황 조회).
++ /api/sync (앱의 동기화 버튼 → scripts/sync.py 실행, 진행 상황 조회)
++ 폰에서 남긴 동기화 요청(Supabase) 1분마다 처리 (data/supabase.json 이 있을 때).
 
 브라우저는 네이버에 직접 요청할 수 없어서(CORS) 이 서버가 중계한다.
 배포 후에는 같은 역할을 supabase/functions/transit 이 맡는다.
@@ -81,6 +82,47 @@ def start_sync():
         return True
 
 
+def cloud_sync_loop():
+    """폰에서 남긴 동기화 요청(Supabase sync_requests)을 1분마다 확인해 처리한다.
+    data/supabase.json {"url": "...", "secret": "sb_secret_..."} 가 있을 때만 돈다 (secret 키는 저장소에 올리지 않음)."""
+    import time
+    import urllib.request
+    cfg_file = ROOT / "data" / "supabase.json"
+    try:
+        cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+        url, key = cfg["url"].rstrip("/"), cfg["secret"]
+        if not key.startswith("sb_secret_"):
+            return
+    except Exception:  # noqa: BLE001 — 설정이 없으면 폰 동기화만 꺼진다
+        return
+
+    def call(method, path, body=None):
+        req = urllib.request.Request(f"{url}/rest/v1/{path}", method=method,
+                                     data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"apikey": key, "Content-Type": "application/json", "Prefer": "return=minimal"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+
+    print("폰 동기화 요청 확인 켜짐 (1분마다)", flush=True)
+    while True:
+        try:
+            pending = call("GET", "sync_requests?status=eq.pending&select=id&order=id")
+            if pending and start_sync():
+                ids = ",".join(str(r["id"]) for r in pending)
+                call("PATCH", f"sync_requests?id=in.({ids})", {"status": "running"})
+                while sync_proc.poll() is None:
+                    time.sleep(5)
+                lines = SYNC_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+                summary = next((l for l in lines if l.startswith("저장 목록")), lines[-1] if lines else "")
+                call("PATCH", f"sync_requests?id=in.({ids})", {
+                    "status": "done" if sync_proc.returncode == 0 else "failed",
+                    "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "summary": summary[:300]})
+        except Exception as e:  # noqa: BLE001 — 인터넷이 잠깐 끊겨도 다음 확인 때 다시
+            print(f"폰 동기화 확인 실패: {type(e).__name__}", flush=True)
+        time.sleep(60)
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if urllib.parse.urlparse(self.path).path != "/api/sync":
@@ -123,4 +165,5 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 5173), functools.partial(Handler, directory=str(APP)))
     print("http://localhost:5173", flush=True)
+    threading.Thread(target=cloud_sync_loop, daemon=True).start()
     srv.serve_forever()
