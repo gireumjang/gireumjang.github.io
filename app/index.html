@@ -329,6 +329,10 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
   transition: transform .2s cubic-bezier(.32,.72,0,1); }
 .food:active { transform: scale(.95); }
 .food .fe { font-size: 30px; line-height: 1.1; }
+.fimg { width: 1.3em; height: 1.3em; object-fit: contain; vertical-align: -0.3em; }
+.food .fe .fimg { width: 44px; height: 44px; vertical-align: top; }
+.ico .fimg { width: 28px; height: 28px; vertical-align: top; }
+.foodhero > span .fimg { width: 56px; height: 56px; vertical-align: top; }
 .food b { font-size: 15px; font-weight: 600; }
 .food small { font-size: 12px; color: var(--season); font-weight: 600; }
 .food.zero { opacity: .45; } .food.zero small { color: var(--label2); font-weight: 500; }
@@ -1357,7 +1361,10 @@ async function loadRealTransit(p) {
 const fmtMin = (m) => (m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ""}`);
 
 // ---------- 리스트 ----------
-const icon = (p) => (p.tags.length ? p.tags[0].emoji : p.types && p.types[0] && TYPE[p.types[0]] ? TYPE[p.types[0]].emoji : "🍽️");
+// 제철 음식 그림 (app/food/{이름}.png). 그림 없는 음식은 이모지 그대로
+const FOOD_IMG = new Set("굴,방어,과메기,도루묵,양미리,도치,곰치,숭어,홍어,새조개,홍합,대구,생태,아귀,매생이,복어,꽃게,전어,대하,삼치,벚굴,주꾸미,도다리,참돔,바지락,멍게,성게,병어,농어,갯장어,민어,장어,전복,냉면,조개,낙지,고등어,갈치,한치,오징어,삼계탕,추어탕,버섯,나물,보쌈,전골,팥죽,떡국,콩국수,우럭".split(","));
+const fe = (key, emoji) => (FOOD_IMG.has(key) ? `<img class="fimg" src="food/${encodeURIComponent(key)}.png?v=1" alt="">` : emoji);
+const icon = (p) => (p.tags.length ? fe(p.tags[0].key, p.tags[0].emoji) : p.types && p.types[0] && TYPE[p.types[0]] ? TYPE[p.types[0]].emoji : "🍽️");
 const hl = (s) => {
   let out = esc(s);
   for (const w of state.q.split(/\s+/).filter(Boolean)) out = out.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
@@ -1382,7 +1389,7 @@ const rowHTML = (p) => {
     <span class="ico ${p.tags.length ? "season" : ""}">${icon(p)}</span>
     <span class="rmain">
       <div class="rname${gradeOf(p) ? " hasg" : ""}"><span class="rn">${state.q ? hl(p.name) : esc(p.name)}</span>${gradeBadge(gradeOf(p))}</div>
-      <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.emoji} ${x.key}</span>`).join("")}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
+      <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${fe(x.key, x.emoji)} ${x.key}</span>`).join("")}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
       ${searchHit(p)}
     </span>
     ${t ? `<span class="rt"><b>${fmtMin(t.min)}</b>${t.km.toFixed(1)}km</span>` : '<span class="chev">›</span>'}
@@ -1414,9 +1421,9 @@ function seasonShift() {
   return { nextM, coming: next.filter((k) => !now.includes(k)), ending: now.filter((k) => !next.includes(k)) };
 }
 const savedWith = (key) => places.filter((p) => window.seasonTags(p, window.SEASON_ITEMS[key].months[0]).some((t) => t.key === key)).length;
-const miniFood = (key, sub) => { const it = window.SEASON_ITEMS[key]; return `<span class="mini"><b>${it.emoji} ${key}</b><small>${sub}</small></span>`; };
+const miniFood = (key, sub) => { const it = window.SEASON_ITEMS[key]; return `<span class="mini"><b>${fe(key, it.emoji)} ${key}</b><small>${sub}</small></span>`; };
 const foodCard = (f) => `<button class="food ${f.n ? "" : "zero"} ${state.food === f.key ? "on" : ""}" data-food="${f.key}">
-  <span class="fe">${f.emoji}</span><b>${f.key}</b><small>${f.n ? `${f.n}곳` : "저장한 곳 없음"}</small>${(f.peak || []).includes(state.month) ? '<i class="peak">절정</i>' : ""}</button>`;
+  <span class="fe">${fe(f.key, f.emoji)}</span><b>${f.key}</b><small>${f.n ? `${f.n}곳` : "저장한 곳 없음"}</small>${(f.peak || []).includes(state.month) ? '<i class="peak">절정</i>' : ""}</button>`;
 function renderList() {
   const scope = places.filter(visible).sort(sorter());
   const f = state.focus;
@@ -1430,7 +1437,7 @@ function renderList() {
     const local = scope.filter((p) => inOrigin(p, state.food)), other = scope.filter((p) => !local.includes(p));
     const last = !it.months.includes(state.month % 12 + 1);
     h += `<div class="dbar"><button class="back" id="foodBack">‹ ${state.month}월 제철 음식 전체</button></div>
-      <div class="foodhero"><span>${it.emoji}</span><div><b>${state.food}</b><small>${esc(it.note)} · ${it.months.join("·")}월${(it.peak || []).includes(state.month) ? " · 지금이 절정" : last ? " · 이번 달이 마지막" : ""}</small>${org.length ? `<small>산지 ${org.map((o) => o.label).join(" · ")}</small>` : ""}${it.tip ? `<small class="tip">${esc(it.tip)}</small>` : ""}</div><em>${scope.length}곳</em></div>`;
+      <div class="foodhero"><span>${fe(state.food, it.emoji)}</span><div><b>${state.food}</b><small>${esc(it.note)} · ${it.months.join("·")}월${(it.peak || []).includes(state.month) ? " · 지금이 절정" : last ? " · 이번 달이 마지막" : ""}</small>${org.length ? `<small>산지 ${org.map((o) => o.label).join(" · ")}</small>` : ""}${it.tip ? `<small class="tip">${esc(it.tip)}</small>` : ""}</div><em>${scope.length}곳</em></div>`;
     if (local.length) h += `<div class="ghead">📍 산지에서 먹기 · ${local.length}곳</div><div class="group">${local.map(rowHTML).join("")}</div>`;
     h += `<div class="ghead">${esc(where)}에서 ${state.food} 먹을 수 있는 곳</div><div class="group">${other.map(rowHTML).join("") || `<div class="empty">${local.length ? "산지 말고는 없어요." : "이 지역엔 없어요."}</div>`}</div>`;
     $("#pList").innerHTML = h; return;
@@ -1557,7 +1564,7 @@ function renderDetail(p) {
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
     ${tr ? `<div class="transit" id="transitBox"><span style="font-size:24px">${tr.how === "걸어서" ? "🚶" : tr.how === "기차·버스" ? "🚄" : "🚇"}</span><div><div class="big">약 ${fmtMin(tr.min)}</div><small>${esc(state.me.label)}에서 ${tr.how} · ${tr.km.toFixed(1)}km · 거리로 낸 대략값</small></div></div>`
           : `<div class="transit ask"><span style="font-size:22px">🚇</span><div style="flex:1"><small>내 위치를 정하면 대중교통 시간이 나와요</small></div><button id="askLoc">위치 설정</button></div>`}
-    ${t.length ? `<div class="seasonhero"><small>${state.month}월 제철 메뉴</small><div>${t.map((x) => x.emoji + " " + esc(x.via.menu || x.via.review ? x.via.text : x.key)).join("  ")}</div><p>${esc(t[0].note)}${t[0].via.menu && t[0].via.menu.price ? " · " + esc(t[0].via.menu.price) : ""}${t[0].via.review ? ` · 후기 ${t[0].via.review.count}번 언급` : ""}</p>${t[0].tip ? `<p class="tip">${esc(t[0].tip)}</p>` : ""}</div>` : ""}
+    ${t.length ? `<div class="seasonhero"><small>${state.month}월 제철 메뉴</small><div>${t.map((x) => fe(x.key, x.emoji) + " " + esc(x.via.menu || x.via.review ? x.via.text : x.key)).join("  ")}</div><p>${esc(t[0].note)}${t[0].via.menu && t[0].via.menu.price ? " · " + esc(t[0].via.menu.price) : ""}${t[0].via.review ? ` · 후기 ${t[0].via.review.count}번 언급` : ""}</p>${t[0].tip ? `<p class="tip">${esc(t[0].tip)}</p>` : ""}</div>` : ""}
     ${p.reviewMenus && p.reviewMenus.length ? `
     <div class="ghead">👍 사람들이 추천하는 메뉴 · 후기 언급 수</div>
     <div class="group bars">${(() => { const max = p.reviewMenus[0].count || 1; return p.reviewMenus.map((m, i) => `
