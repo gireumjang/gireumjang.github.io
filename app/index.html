@@ -1250,7 +1250,7 @@ async function loadGrades() {
   if (error || !data) return;
   grades = Object.fromEntries(data.map((r) => [r.place_id, r.grade])); gradesLoaded = true;
   store.set("grades", grades); prefs = typePrefs();
-  renderList(); stylePins(); if (state.selected) renderDetail(state.selected);
+  refresh(); if (state.selected) renderDetail(state.selected);
   migrateVisits();
 }
 // 처음 한 번만: 예전 방문 횟수를 등급으로 (20번+ S · 10번+ A · 5번+ B · 그 밖 C). 등급이 하나라도 있으면 안 함
@@ -1264,7 +1264,7 @@ async function migrateVisits() {
   const { error } = await sb.from("grades").upsert(rows);
   if (error) { store.set(flag, false); return toast("방문 기록을 등급으로 옮기지 못했어요"); }
   for (const r of rows) grades[r.place_id] = r.grade;
-  store.set("grades", grades); prefs = typePrefs(); renderList(); stylePins(); if (state.selected) renderDetail(state.selected);
+  store.set("grades", grades); prefs = typePrefs(); refresh(); if (state.selected) renderDetail(state.selected);
   toast(`방문 기록을 ${rows.length}곳의 등급으로 옮겼어요`);
 }
 async function setGrade(p, g) {
@@ -1272,12 +1272,12 @@ async function setGrade(p, g) {
   const prev = grades[p.id] || null;
   if (g === prev) g = null;                       // 같은 등급을 다시 누르면 지움
   if (g) grades[p.id] = g; else delete grades[p.id];
-  store.set("grades", grades); prefs = typePrefs(); renderDetail(p); renderList(); stylePins();
+  store.set("grades", grades); prefs = typePrefs(); renderDetail(p); refresh();
   const { error } = g ? await sb.from("grades").upsert({ place_id: p.id, grade: g, updated_at: new Date().toISOString() })
     : await sb.from("grades").delete().eq("place_id", p.id);
   if (error) {
     if (prev) grades[p.id] = prev; else delete grades[p.id];
-    store.set("grades", grades); prefs = typePrefs(); if (state.selected === p) renderDetail(p); renderList(); stylePins();
+    store.set("grades", grades); prefs = typePrefs(); if (state.selected === p) renderDetail(p); refresh();
     return toast("등급을 저장하지 못했어요");
   }
   if (g) toast(`${g}등급으로 정했어요`);
