@@ -1382,13 +1382,11 @@ async function sharePlace(p) {
 }
 // 길찾기: 가게 페이지가 아니라 길안내 화면으로 바로 (정보는 앱 안에서 끝, 가는 길만 지도 앱에)
 const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-const IS_APPLE = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
 function openRoute(kind, p) {
   const n = encodeURIComponent(p.name.replace(/,/g, " "));
   const R = {
     naver: [`nmap://route/public?dlat=${p.lat}&dlng=${p.lng}&dname=${n}&appname=gireumjang.github.io`, `https://map.naver.com/p/directions/-/${p.lng},${p.lat},${n},,/-/transit`],
     kakao: [`kakaomap://route?ep=${p.lat},${p.lng}&by=PUBLICTRANSIT`, `https://map.kakao.com/link/to/${n},${p.lat},${p.lng}`],
-    apple: [null, `https://maps.apple.com/?daddr=${p.lat},${p.lng}&dirflg=r`],
   }[kind];
   if (!R) return;
   const [app, web] = R;
@@ -1698,7 +1696,7 @@ function renderDetail(p) {
     <div class="dsub">${esc(p.kind || p.cat || "음식점")} · ${esc(p.region)} ${esc(p.area || "")}${p.chain ? " · 체인·지점" : p.main ? " · 본점" : ""}</div>
     ${!cloudUser && says[p.id] ? `<div class="saybox">${says[p.id].say ? `<div class="sayt">“${esc(says[p.id].say)}”</div>` : ""}${says[p.id].dish ? `<div class="sayd"><b>꼭 시킬 것</b>${esc(says[p.id].dish)}</div>` : ""}</div>` : ""}
     ${(() => { const o = openInfo(p); return o.known ? `<div class="openrow ${o.closed ? "closed" : o.open ? "open" : ""}"><b>${o.closed ? "오늘 휴무" : o.inBreak ? "브레이크타임" : o.open ? "영업 중" : "영업 전·후"}</b><span>${esc(o.text)}</span></div>` : ""; })()}
-    ${p.lat && p.lng ? `<div class="route"><span>길찾기</span><button data-route="naver">네이버지도</button><button data-route="kakao">카카오맵</button>${IS_APPLE ? '<button data-route="apple">애플 지도</button>' : ""}</div>` : ""}
+    ${p.lat && p.lng ? `<div class="route"><button data-route="naver" aria-label="네이버지도로 길찾기">네이버지도</button><button data-route="kakao" aria-label="카카오맵으로 길찾기">카카오맵</button></div>` : ""}
     ${cloudUser ? `<div class="visitbox">
       <div class="graderow"><span>내 등급<small>${gradeOf(p) ? "다시 누르면 지워져요" : "친구에게도 보여요"}</small></span><div class="gpick">${GRADES.map((g) => `<button class="gbtn ${gradeOf(p) === g ? "on g" + g : ""}" data-grade="${g}" aria-label="${g}등급">${g}</button>`).join("")}</div></div>
       <input class="sayin" id="sayIn" maxlength="120" placeholder="한마디 (친구에게도 보여요)" value="${esc((says[p.id] || {}).say || "")}">
