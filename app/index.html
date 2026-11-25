@@ -11,7 +11,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="한 점">
 <meta property="og:description" content="제철 맛집 지도 · 약속 장소 투표">
-<meta property="og:image" content="https://msroe84-web.github.io/hanjeom/og.png">
+<meta property="og:image" content="https://msroe84-web.github.io/hanjeom/og.png?v=2">
 <meta property="og:image:width" content="800">
 <meta property="og:image:height" content="420">
 <meta name="apple-mobile-web-app-title" content="한 점">
@@ -132,17 +132,17 @@ header { flex: none; position: relative; z-index: 5;
 .toprow { position: relative; }
 .logo { position: absolute; left: 50%; top: 2px; transform: translateX(-50%); z-index: 1; transition: transform .2s cubic-bezier(.32,.72,0,1); }
 .logo:active { transform: translateX(-50%) scale(.94); }
-.logo img { display: block; height: 62px; width: auto; }
+.logo img { display: block; height: 44px; width: auto; }
 .logo .lg-dark { display: none; }
 @media (prefers-color-scheme: dark) { .logo .lg-light { display: none; } .logo .lg-dark { display: block; } }
-@media (max-width: 719px) { #title { max-width: calc(50% - 56px); } }
+@media (max-width: 719px) { .logo { top: 10px; } #title { max-width: calc(50% - 74px); } }
 @media (min-width: 720px) {
   /* 넓은 화면: 제목·검색 한 줄, 칩 두 줄 */
   .toprow { display: flex; align-items: flex-end; gap: 16px; }
   .toprow .titlewrap { flex: none; min-width: 200px; }
   .toprow .searchrow { flex: 1; max-width: min(560px, calc(50% - 180px)); margin: 0 0 4px auto; }
   .logo { top: auto; bottom: 2px; }
-  .logo img { height: 68px; }
+  .logo img { height: 54px; }
 }
 .crumb { font-size: 15px; color: var(--pin); font-weight: 600; height: 30px; padding: 0 12px 0 8px; margin-bottom: 4px; border-radius: 999px; background: var(--fill); display: inline-flex; align-items: center; gap: 2px;
   opacity: 0; transform: translateX(-8px); transition: opacity .3s, transform .45s cubic-bezier(.32,.72,0,1); pointer-events: none; }
@@ -511,7 +511,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 
   </div>
   </div>
-  <button class="logo" id="logoHome" aria-label="한 점, 처음 화면으로"><img class="lg-light" src="logo-light.png" alt=""><img class="lg-dark" src="logo-dark.png" alt=""></button>
+  <button class="logo" id="logoHome" aria-label="한 점, 처음 화면으로"><img class="lg-light" src="logo-light.png?v=2" alt=""><img class="lg-dark" src="logo-dark.png?v=2" alt=""></button>
   <div class="searchrow">
     <label class="search" id="searchBox">
       <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
