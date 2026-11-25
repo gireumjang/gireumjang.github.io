@@ -134,6 +134,28 @@ header { flex: none; position: relative; z-index: 5;
 .logo:active { transform: translateX(-50%) scale(.94); }
 .logo img { display: block; height: 44px; width: auto; }
 .logo .lg-dark { display: none; }
+/* 기름 방울: j 위 방울은 말랑하게 출렁, g 끝 방울은 맺혔다가 똑 떨어지고 다시 맺힘 */
+.lgbox { position: relative; display: block; }
+.logo img.drop { position: absolute; height: auto; pointer-events: none; }
+.drop.d0 { left: 59.55%; top: 2%; width: 7.19%; transform-origin: 50% 100%; animation: dwobble 3.2s ease-in-out infinite; }
+.drop.d1 { left: 86.74%; top: 63.33%; width: 9.44%; transform-origin: 50% 0; animation: drip 4.2s cubic-bezier(.5,0,.75,0) infinite; }
+@keyframes dwobble {
+  0%, 62%, 100% { transform: none; }
+  70% { transform: scale(1.12, .86); }
+  78% { transform: scale(.92, 1.1) translateY(-6%); }
+  86% { transform: scale(1.04, .97); }
+  93% { transform: none; }
+}
+@keyframes drip {
+  0% { transform: scale(.2); opacity: 0; }
+  12% { transform: scale(.6); opacity: 1; }
+  45% { transform: scale(1); }
+  62% { transform: scale(.94, 1.14); }
+  70% { transform: scale(.9, 1.2) translateY(6%); opacity: 1; }
+  88% { transform: scale(.85, 1.1) translateY(120%); opacity: 0; }
+  100% { transform: scale(.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .logo img.drop { animation: none; } }
 @media (prefers-color-scheme: dark) { .logo .lg-light { display: none; } .logo .lg-dark { display: block; } }
 @media (max-width: 719px) { .logo { top: 10px; } #title { max-width: calc(50% - 74px); } }
 @media (min-width: 720px) {
@@ -511,7 +533,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 
   </div>
   </div>
-  <button class="logo" id="logoHome" aria-label="한 점, 처음 화면으로"><img class="lg-light" src="logo-light.png?v=2" alt=""><img class="lg-dark" src="logo-dark.png?v=2" alt=""></button>
+  <button class="logo" id="logoHome" aria-label="한 점, 처음 화면으로"><span class="lgbox"><img class="lg-light" src="logo-light.png?v=3" alt=""><img class="lg-dark" src="logo-dark.png?v=3" alt=""><img class="drop d0" src="drop0.png?v=3" alt=""><img class="drop d1" src="drop1.png?v=3" alt=""></span></button>
   <div class="searchrow">
     <label class="search" id="searchBox">
       <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
