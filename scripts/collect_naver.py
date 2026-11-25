@@ -127,8 +127,8 @@ def snapshot(d):
 
 def place_ids():
     seen = {}
-    for f in ("맛집리스트.json", "찐맛집.json"):
-        for b in json.loads((RAW / f).read_text(encoding="utf-8"))["bookmarkList"]:
+    for f in sorted(RAW.glob("*.json")):   # 공유 폴더마다 하나 (data/shares.json 에 넣은 폴더 전부)
+        for b in json.loads(f.read_text(encoding="utf-8"))["bookmarkList"]:
             if b.get("sid"):
                 seen[b["sid"]] = b["name"]
     return seen

@@ -88,8 +88,9 @@ def build_geo():
 
 def build_places():
     places = {}
-    for fname, folder in (("맛집리스트.json", "맛집리스트"), ("찐맛집.json", "찐맛집")):
-        data = json.loads((RAW / fname).read_text(encoding="utf-8"))
+    for f in sorted(RAW.glob("*.json")):   # 공유 폴더마다 하나 (data/shares.json 에 넣은 폴더 전부)
+        folder = f.stem
+        data = json.loads(f.read_text(encoding="utf-8"))
         for b in data["bookmarkList"]:
             if b.get("px") is None or b.get("py") is None:
                 continue

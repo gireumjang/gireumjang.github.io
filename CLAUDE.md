@@ -42,7 +42,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 
 ## 데이터 흐름
 
-1. `data/raw/맛집리스트.json`, `찐맛집.json` — 네이버 공유 폴더 API에서 받은 저장 목록 (`sync.py`가 다시 받음)
+1. `data/raw/{폴더}.json` — 네이버 공유 폴더 API에서 받은 저장 목록 (`sync.py`가 다시 받음). 폴더는 `data/shares.json`에 넣은 것 전부(2026-11-25: 맛집리스트·찐맛집·홍어·짬뽕·제주도). 같은 가게가 여러 폴더에 있으면 한 곳으로 합침. 폴더를 더하려면 네이버 앱에서 폴더를 공개 → 공유 링크(naver.me) → 넘어간 주소 끝의 32자 ID를 shares.json에
    - 공유 폴더 ID·링크는 `data/shares.json`에만 둔다 (공개 저장소에 올리면 누구나 저장 목록·닉네임을 볼 수 있음). 새 PC면 이 파일을 옮겨 올 것
    - API: `https://pages.map.naver.com/save-pages/api/maps-bookmark/v3/shares/{shareId}/bookmarks?start=0&limit=5000`
 2. `collect_naver.py` → `data/naver/{sid}.json` + `data/naver/history/{sid}.jsonl`(수집할 때마다 스냅샷)
