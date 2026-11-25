@@ -94,6 +94,8 @@ def build_places():
         for b in data["bookmarkList"]:
             if b.get("px") is None or b.get("py") is None:
                 continue
+            if b.get("available") is False:   # 네이버가 '없는 장소'로 표시 (폐업·삭제) → 앱에서 뺌
+                continue
             key = b.get("sid") or f'{b["name"]}@{b["px"]:.5f},{b["py"]:.5f}'
             addr = b.get("address") or ""
             first = addr.split()[0] if addr else ""

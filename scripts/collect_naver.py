@@ -129,7 +129,7 @@ def place_ids():
     seen = {}
     for f in sorted(RAW.glob("*.json")):   # 공유 폴더마다 하나 (data/shares.json 에 넣은 폴더 전부)
         for b in json.loads(f.read_text(encoding="utf-8"))["bookmarkList"]:
-            if b.get("sid"):
+            if b.get("sid") and b.get("available") is not False:   # 없는 장소는 받으려 해도 실패만 함
                 seen[b["sid"]] = b["name"]
     return seen
 
