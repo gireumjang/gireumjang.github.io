@@ -197,6 +197,8 @@ h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: .3px; line-he
 .chip.season.on { background: var(--season); color: #fff; }
 .chip.region { background: transparent; box-shadow: inset 0 0 0 1px var(--sep); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .chip.region.on { background: var(--pin); color: #fff; box-shadow: none; }
+.chip.gchip { padding-left: 6px; }
+.chip.gchip .grade { margin-left: 0; }
 .chip b { font-weight: 600; opacity: .55; margin-left: 4px; font-variant-numeric: tabular-nums; }
 .chip.disabled { opacity: .35; }
 .vsep { flex: none; width: 1px; background: var(--sep); margin: 6px 2px; }
@@ -540,7 +542,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
   <div class="searchrow">
     <label class="search" id="searchBox">
       <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.6 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <input id="q" type="search" placeholder="메뉴나 가게 이름으로 찾기" autocomplete="off" enterkeyhint="search">
+      <input id="q" type="search" placeholder="메뉴, 동네, 가게 이름으로 찾기" autocomplete="off" enterkeyhint="search">
       <button class="x" id="qx" aria-label="지우기">✕</button>
     </label>
     <button class="locbtn" id="locBtn">📍 <span id="locTxt">내 위치</span></button>
@@ -651,17 +653,24 @@ const centroid = (polys) => {
 const provinces = window.GEO.provinces.map((f) => ({ ...f, short: PROV_SHORT[f.name] || f.name, c: centroid(f.polys) }));
 const gus = window.GEO.seoul.map((f) => ({ ...f, prov: "서울", c: centroid(f.polys) }));
 const munis = [...gus, ...window.GEO.munis.map((f) => ({ ...f, c: centroid(f.polys) }))];
+// 행정동 이름 + 흔히 부르는 이름: 자양3동 → 자양동, 성수1가1동 → 성수동·성수1가, 상계3·4동 → 상계동
+function dongNames(d) {
+  if (!d) return [];
+  const out = [d], m = d.match(/^(.+?)제?\d[\d·.,]*(가\d*)?동$/);
+  if (m) { out.push(m[1] + "동"); const g = d.match(/^(.+?\d+가)/); if (g) out.push(g[1]); }
+  return out;
+}
 for (const p of places) {
   // 검색용 텍스트 (이름, 업종, 유형, 메뉴, 후기 메뉴, 키워드, 주소)
   p.hay = [p.name, p.kind, p.cat, ...(p.types || []).map((t) => TYPE[t] && TYPE[t].label), ...(p.menus || []).map((m) => m.name),
-    ...(p.reviewMenus || []).map((m) => m.name), ...(p.keywords || []).map((k) => k.name), p.addr].filter(Boolean).join(" ").toLowerCase();
+    ...(p.reviewMenus || []).map((m) => m.name), ...(p.keywords || []).map((k) => k.name), p.addr, ...dongNames(p.dong)].filter(Boolean).join(" ").toLowerCase();
 }
 
 // ---------- 상태 ----------
 const now = new Date();
 const state = {
   month: now.getMonth() + 1,
-  season: false, type: null, q: "", food: null,
+  season: false, type: null, q: "", food: null, grade: null,
   focus: { type: "home" },   // home | prov{prov} | area{prov, area}
   selected: null,
   me: store.get("me"),       // {lat,lng,label}
@@ -756,12 +765,14 @@ const backOut = (t) => { const c = 1.9; t -= 1; return 1 + t * t * ((c + 1) * t 
 // ---------- 필터 ----------
 const inRegion = (p, f = state.focus) =>
   f.type === "home" ? true : f.type === "prov" ? p.region === f.prov : p.region === f.prov && p.area === f.area;
+const NEAR_KM = 0.8;
 const matchQ = (p) => {
   if (!state.q) return true;
+  if (state.near && state.near.q === state.q && km(state.near, p) <= NEAR_KM) return true;
   return state.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => p.hay.includes(w));
 };
 const passType = (p) => (!state.type || (p.types || []).includes(state.type));
-const passToggles = (p) => (!state.season || p.tags.length) &&(!state.food || p.tags.some((t) => t.key === state.food));
+const passToggles = (p) => (!state.grade || gradeOf(p) === state.grade) && (!state.season || p.tags.length) &&(!state.food || p.tags.some((t) => t.key === state.food));
 // 검색어가 있으면 지도가 어느 지역을 보고 있든 결과는 전국에서 (가게 하나 고른 뒤 다음 검색이 갇히지 않게)
 const visible = (p) => (state.q || inRegion(p)) && matchQ(p) && passType(p) && passToggles(p);
 const pinR = (p) => (p === state.selected ? 7 : gradeOf(p) === "S" ? 5.6 : gradeOf(p) === "A" ? 5 : p.tags.length ? 4.4 : 3);
@@ -1022,8 +1033,13 @@ function renderChips() {
   const tc = {};
   for (const p of scope.filter(passToggles)) for (const t of p.types || []) tc[t] = (tc[t] || 0) + 1;
   const scoped = scope.filter(passType);
+  const gScope = scoped.filter((p) => (!state.season || p.tags.length) && (!state.food || p.tags.some((t) => t.key === state.food)));
+  const gc = countBy(gScope.filter(gradeOf), gradeOf);
+  const gchips = GRADES.filter((g) => gc[g] || state.grade === g)
+    .map((g) => `<button class="chip gchip ${state.grade === g ? "on" : ""}" data-grade-f="${g}" aria-label="${g}등급만 보기">${gradeBadge(g)}<b>${gc[g] || 0}</b></button>`).join("");
   $("#typeChips").innerHTML =
     `<button class="chip season ${state.season ? "on" : ""}" data-toggle="season">🔥 ${state.month}월 제철<b>${scoped.filter((p) => p.tags.length).length}</b></button><span class="vsep"></span>` +
+    (gchips ? gchips + '<span class="vsep"></span>' : "") +
     TYPES.filter((t) => tc[t.id] || state.type === t.id)
       .sort((a, b) => (tc[b.id] || 0) - (tc[a.id] || 0))
       .map((t) => `<button class="chip ${state.type === t.id ? "on" : ""}" data-type="${t.id}">${t.emoji} ${t.label}<b>${tc[t.id] || 0}</b></button>`).join("");
@@ -1040,12 +1056,49 @@ $("#typeChips").addEventListener("click", (e) => {
   const b = e.target.closest(".chip"); if (!b) return;
   if (b.dataset.toggle) { state[b.dataset.toggle] = !state[b.dataset.toggle]; if (!state.season) state.food = null; }
   if (b.dataset.type) state.type = state.type === b.dataset.type ? null : b.dataset.type;
+  if (b.dataset.gradeF) state.grade = state.grade === b.dataset.gradeF ? null : b.dataset.gradeF;
   refresh();
 });
 
 function refresh() { stylePins(); renderChips(); renderList(); kick(); }
 
 // ---------- 검색 ----------
+// 검색어가 동 이름과 딱 맞고 그 가게들이 한 시·군·구에 모여 있으면 그 지역 → 지도를 거기로 (동 경계도 보임)
+function dongArea(q) {
+  const w = q.toLowerCase(); if (/\s/.test(w) || w.length < 2) return null;
+  const ws = /[동읍면가]$/.test(w) ? [w] : [w + "동"];                       // '압구정' → '압구정동'
+  const hit = places.filter((p) => dongNames(p.dong).some((n) => ws.includes(n)));
+  if (!hit.length) return null;
+  const a = hit[0];
+  return hit.every((p) => p.region === a.region && p.area === a.area) && a.area ? { type: "area", prov: a.region, area: a.area } : null;
+}
+// 역 이름 → 위치 (OpenStreetMap 검색, 친 글자만 보냄. 한 번 찾은 건 기억)
+const stCache = {};
+let stTimer = 0;
+function maybeStation(q) {
+  clearTimeout(stTimer); state.near = null;
+  const w = q.trim(); if (!w || /\s/.test(w) || w.length < 2) return;
+  const isSt = w.endsWith("역");
+  if (!isSt && places.some(matchQ)) return;          // 역이라고 안 했고 이미 결과가 있으면 그대로
+  const key = isSt ? w : w + "역", base = key.slice(0, -1);
+  if (base.length < 2) return;
+  stTimer = setTimeout(async () => {
+    let r = stCache[key];
+    if (r === undefined) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=kr&accept-language=ko&q=${encodeURIComponent(key)}`;
+        const j = await (await fetch(url, { headers: { Accept: "application/json" } })).json();
+        const hit = (j || []).find((x) => String(x.name || x.display_name || "").includes(base));
+        r = stCache[key] = hit ? { lat: +hit.lat, lng: +hit.lon } : null;
+      } catch (e) { return; }
+    }
+    if (!r || state.q !== q) return;
+    state.near = { q, lat: r.lat, lng: r.lng, label: key };
+    const hit = places.filter((p) => km(r, p) <= NEAR_KM).sort((a, b) => km(r, a) - km(r, b));
+    if (hit[0] && hit[0].area && hit.every((p) => p.region === hit[0].region)) setFocus({ type: "area", prov: hit[0].region, area: hit[0].area });
+    refresh();
+  }, 450);
+}
 let qt = 0;
 $("#q").addEventListener("input", (e) => {
   $("#searchBox").classList.toggle("has", !!e.target.value);
@@ -1053,8 +1106,11 @@ $("#q").addEventListener("input", (e) => {
   qt = setTimeout(() => {
     const q = e.target.value.trim(), fresh = q && !state.q;
     state.q = q; select(null);
-    if (fresh) { state.type = null; state.season = false; state.food = null; }  // 새 검색은 유형·제철 조건 없이
-    if (q && state.focus.type !== "home") setFocus({ type: "home" });           // 지도도 전국으로 돌아와 결과 핀이 다 보이게
+    if (fresh) { state.type = null; state.season = false; state.food = null; state.grade = null; }  // 새 검색은 유형·제철 조건 없이
+    const da = q && dongArea(q);                                                 // '자양동'처럼 동 이름이면 그 구로 확대
+    if (da) { if (!(state.focus.type === "area" && state.focus.prov === da.prov && state.focus.area === da.area)) setFocus(da); }
+    else if (q && state.focus.type !== "home") setFocus({ type: "home" });      // 지도도 전국으로 돌아와 결과 핀이 다 보이게
+    maybeStation(q);
     refresh(); if (state.q && cur === "peek") snap("half");
   }, 120);
 });
@@ -1062,7 +1118,7 @@ $("#q").addEventListener("input", (e) => {
 // 로고: 처음 화면으로 (검색·필터·지역·확대 모두 초기화)
 $("#logoHome").addEventListener("click", () => {
   $("#q").value = ""; $("#searchBox").classList.remove("has");
-  Object.assign(state, { q: "", type: null, season: false, food: null, sort: "default" });
+  Object.assign(state, { q: "", type: null, season: false, food: null, grade: null, sort: "default" });
   listLimit = 60;
   select(null);
   setFocus({ type: "home" });
@@ -1076,7 +1132,7 @@ function setSearchHint() {
   const cnt = {};
   for (const p of places) for (const t of p.tags) cnt[t.key] = (cnt[t.key] || 0) + 1;
   const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 2);
-  $("#q").placeholder = top.length ? `${top.join(", ")}, 가게 이름으로 찾기` : "메뉴나 가게 이름으로 찾기";
+  $("#q").placeholder = top.length ? `${top.join(", ")}, 동네·가게 이름` : "메뉴, 동네, 가게 이름으로 찾기";
 }
 setSearchHint();
 function setMonth(m) {
@@ -1309,6 +1365,8 @@ const hl = (s) => {
 };
 function searchHit(p) {
   if (!state.q) return "";
+  const nr = state.near && state.near.q === state.q ? state.near : null;
+  if (nr && km(nr, p) <= NEAR_KM) return `<div class="rhit">🚇 ${esc(nr.label)}에서 걸어서 ${Math.max(1, Math.round(km(nr, p) * 1.3 / 0.075))}분</div>`;
   const ws = state.q.toLowerCase().split(/\s+/).filter(Boolean);
   const hit = (s) => s && ws.some((w) => s.toLowerCase().includes(w));
   const m = (p.menus || []).filter((x) => hit(x.name)).slice(0, 2);
@@ -1334,13 +1392,15 @@ let listLimit = 60;
 function sorter() {
   if (state.sort === "near" && state.me) return (a, b) => km(state.me, a) - km(state.me, b);
   if (state.sort === "rating") return (a, b) => ((b.rating || 0) - (a.rating || 0)) || ((b.vr || 0) - (a.vr || 0));
+  const nr = state.near && state.near.q === state.q ? state.near : null;
+  if (nr) return (a, b) => km(nr, a) - km(nr, b);
   const q = state.q.toLowerCase();
   const nameHit = (p) => (q && p.name.toLowerCase().includes(q) ? 1 : 0);  // 검색할 땐 가게 이름이 맞는 곳이 먼저
   return (a, b) => (nameHit(b) - nameHit(a)) || (closedToday(a) - closedToday(b)) || (prefBoost(b) - prefBoost(a)) ||((b.vr || 0) - (a.vr || 0)) || (b.saved - a.saved);
 }
 // 이번 달 제철 음식 카드 (가게 수 포함). scope: 지역·유형 조건만 적용
 function seasonFoods() {
-  const base = places.filter((p) => inRegion(p) && matchQ(p) && passType(p));
+  const base = places.filter((p) => inRegion(p) && matchQ(p) && passType(p) && (!state.grade || gradeOf(p) === state.grade));
   return Object.entries(window.SEASON_ITEMS)
     .filter(([, it]) => it.months.includes(state.month))
     .map(([key, it]) => ({ key, ...it, n: base.filter((p) => p.tags.some((t) => t.key === key)).length }))
@@ -1387,15 +1447,15 @@ function renderList() {
     h += `</div>`;
     $("#pList").innerHTML = h; return;
   }
-  const title = state.q ? `“${esc(state.q)}”` : esc(where) + (state.type ? ` · ${TYPE[state.type].label}` : "");
-  const homeView = f.type === "home" && !state.q && !state.type;
+  const title = state.q ? `“${esc(state.q)}”` : esc(where) + (state.type ? ` · ${TYPE[state.type].label}` : "") + (state.grade ? ` · ${state.grade}등급` : "");
+  const homeView = f.type === "home" && !state.q && !state.type && !state.grade;
   const showSync = (sync.available || cloudUser) && homeView;
   h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}${sb && homeView ? `<button class="syncbtn" id="authBtn">${cloudUser ? "☁︎ 저장 중" : "☁︎ 로그인"}</button>` : ""}</span></div>`;
   h += `<div class="seg" id="seg">
     <button data-sort="default" class="${state.sort === "default" ? "on" : ""}">추천순</button>
     <button data-sort="rating" class="${state.sort === "rating" ? "on" : ""}">별점순</button>
     <button data-sort="near" class="${state.sort === "near" ? "on" : ""}">${state.me ? "가까운 순" : "📍 가까운 순"}</button></div>`;
-  const isHome = !state.q && !state.type && f.type === "home" && state.sort === "default";
+  const isHome = !state.q && !state.type && !state.grade && f.type === "home" && state.sort === "default";
   if (isHome) {
     if (state.me) {
       const near = places.filter((p) => p.tags.length && !closedToday(p))

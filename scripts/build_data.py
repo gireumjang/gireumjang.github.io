@@ -176,10 +176,42 @@ def weekly_stats(path):
     return out
 
 
+def add_dongs(places):
+    """가게 좌표가 들어가는 행정동 이름 → p["dong"] (검색창에 '자양동'처럼 동 이름으로 찾기).
+    도로명 주소엔 동이 없어서, data/geo_raw 의 최신 행정동 경계로 좌표를 넣어 본다. 파일이 없으면 건너뜀."""
+    files = sorted((ROOT / "data" / "geo_raw").glob("HangJeongDong_ver*.geojson"))
+    if not files:
+        print("dong: 행정동 경계 파일 없음, 건너뜀")
+        return
+    feats = []
+    for f in json.loads(files[-1].read_text(encoding="utf-8"))["features"]:
+        g = f["geometry"]
+        polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+        xs = [x for poly in polys for x, _ in poly[0]]; ys = [y for poly in polys for _, y in poly[0]]
+        feats.append((min(xs), max(xs), min(ys), max(ys), polys, f["properties"]["adm_nm"].split()[-1]))
+
+    def in_ring(ring, x, y):
+        c = False
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+            if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+                c = not c
+        return c
+
+    hit = 0
+    for p in places:
+        x, y = p["lng"], p["lat"]
+        for x0, x1, y0, y1, polys, name in feats:
+            if x0 <= x <= x1 and y0 <= y <= y1 and any(in_ring(poly[0], x, y) and not any(in_ring(h, x, y) for h in poly[1:]) for poly in polys):
+                p["dong"] = name; hit += 1
+                break
+    print(f"dong: {hit}/{len(places)}곳에 동 이름")
+
+
 def main():
     OUT.mkdir(exist_ok=True)
     geo = build_geo()
     places = build_places()
+    add_dongs(places)
     (OUT / "geo.js").write_text("window.GEO=" + json.dumps(geo, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8", newline="\n")
     (OUT / "types.js").write_text("window.TYPES=" + json.dumps(TYPE_INFO, ensure_ascii=False) + ";\n", encoding="utf-8", newline="\n")
     (OUT / "places.js").write_text("window.PLACES=" + json.dumps(places, ensure_ascii=False, separators=(",", ":")) + ";\n", encoding="utf-8", newline="\n")
