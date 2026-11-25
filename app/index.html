@@ -375,7 +375,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .dshare:active { transform: scale(.94); }
 .pgal { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 14px; margin: 4px 0 6px; background: var(--fill); }
 .pgal::-webkit-scrollbar { display: none; }
-.pgal img { flex: none; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; scroll-snap-align: center; user-select: none; -webkit-user-drag: none; }
+.pgal img { flex: none; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; scroll-snap-align: center; user-select: none; -webkit-user-drag: none; }
 .pdots { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
 .pdots i { width: 6px; height: 6px; border-radius: 50%; background: var(--label3); transition: background .2s, transform .2s; }
 .pdots i.on { background: var(--label); transform: scale(1.2); }
@@ -562,6 +562,20 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
   .chips::-webkit-scrollbar-thumb, .foodstrip::-webkit-scrollbar-thumb, .dstrip::-webkit-scrollbar-thumb { background: var(--label3); border-radius: 3px; }
   .chips.hdragging, .foodstrip.hdragging, .dstrip.hdragging, .pgal.hdragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
 }
+
+/* 사진 올리기 전 위치 잡기 (정사각형) */
+.cropwrap { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.95); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px); color: #fff; }
+.croptitle { font-size: 15px; font-weight: 600; opacity: .9; text-align: center; }
+.croptitle small { display: block; font-size: 13px; font-weight: 400; opacity: .7; margin-top: 2px; }
+.cropbox { position: relative; width: min(88vw, 420px); aspect-ratio: 1 / 1; overflow: hidden; border-radius: 14px; touch-action: none; cursor: grab; background: #222;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+.cropbox:active { cursor: grabbing; }
+.cropbox img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.cropzoom { width: min(70vw, 320px); accent-color: #fff; }
+.cropbtns { display: flex; gap: 10px; width: min(88vw, 420px); }
+.cropbtns button { flex: 1; height: 46px; border-radius: 12px; font-size: 16px; font-weight: 600; background: rgba(255,255,255,.14); color: #fff; }
+.cropbtns button.ok { background: #fff; color: #000; }
 
 /* toast */
 #toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 40; transform: translate(-50%, -90px);
@@ -1328,16 +1342,6 @@ function saveSay(p) {
 const MAX_PHOTOS = 5;
 const photoNames = (p) => ((says[p.id] || {}).photo || "").split(",").filter(Boolean);
 const photoSrc = (p, v) => `${CFG.supabaseUrl}/storage/v1/object/public/photos/${encodeURIComponent(p.id)}/${v}.jpg`;
-async function shrinkPhoto(file) {   // 긴 쪽 1280px JPEG 로 줄이기 (폰 사진 그대로면 너무 큼)
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
-    const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    return await new Promise((ok) => c.toBlob(ok, "image/jpeg", 0.82));
-  } finally { URL.revokeObjectURL(url); }
-}
 async function savePhotoList(p, list) {
   const cur = says[p.id] || { say: "", dish: "" }, photo = list.join(",");
   const { error } = cur.say || cur.dish || photo ? await sb.from("says").upsert({ place_id: p.id, say: cur.say || "", dish: cur.dish || "", photo, updated_at: new Date().toISOString() })
@@ -1346,16 +1350,73 @@ async function savePhotoList(p, list) {
   if (cur.say || cur.dish || photo) says[p.id] = { ...cur, photo }; else delete says[p.id];
   store.set("says", says); return true;
 }
+// 정사각형으로 보일 자리 잡기: 끌어서 위치, 두 손가락·휠·막대로 크기. 확인하면 1080px 정사각형 JPEG
+function cropSquare(file, label) {
+  return new Promise((done) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); done(null); };
+    img.onload = () => {
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const wrap = document.createElement("div"); wrap.className = "cropwrap";
+      wrap.innerHTML = `<div class="croptitle">사진 위치 잡기 ${label}<small>끌어서 옮기고, 두 손가락이나 아래 막대로 크기를 바꿔요</small></div>
+        <div class="cropbox"></div><input class="cropzoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="크기">
+        <div class="cropbtns"><button class="no">이 사진 빼기</button><button class="ok">확인</button></div>`;
+      document.body.appendChild(wrap);
+      const box = wrap.querySelector(".cropbox"), zoom = wrap.querySelector(".cropzoom");
+      box.appendChild(img);
+      let B = box.clientWidth, base = B / Math.min(W, H), z = 1, x = (B - W * base) / 2, y = (B - H * base) / 2;
+      const clamp = () => { const k = base * z; x = Math.min(0, Math.max(B - W * k, x)); y = Math.min(0, Math.max(B - H * k, y)); };
+      const draw = () => { clamp(); img.style.width = W + "px"; img.style.transform = `translate(${x}px, ${y}px) scale(${base * z})`; zoom.value = z; };
+      const zoomAt = (nz, cx, cy) => { nz = Math.max(1, Math.min(3, nz)); const k0 = base * z, k1 = base * nz; x = cx - ((cx - x) / k0) * k1; y = cy - ((cy - y) / k0) * k1; z = nz; draw(); };
+      draw();
+      const pts = new Map(); let last = null;
+      box.addEventListener("pointerdown", (e) => { box.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = null; });
+      box.addEventListener("pointermove", (e) => {
+        if (!pts.has(e.pointerId)) return;
+        const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pts.size === 1) { x += e.clientX - prev[0]; y += e.clientY - prev[1]; draw(); return; }
+        const [a, b] = [...pts.values()], r = box.getBoundingClientRect();
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1]), cx = (a[0] + b[0]) / 2 - r.left, cy = (a[1] + b[1]) / 2 - r.top;
+        if (last) zoomAt(z * (d / last), cx, cy);
+        last = d;
+      });
+      const up = (e) => { pts.delete(e.pointerId); last = null; };
+      box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up);
+      box.addEventListener("wheel", (e) => { e.preventDefault(); const r = box.getBoundingClientRect(); zoomAt(z * Math.exp(-e.deltaY / 400), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+      zoom.oninput = () => zoomAt(+zoom.value, B / 2, B / 2);
+      const finish = (ok) => {
+        let out = null;
+        if (ok) {
+          const k = base * z, sw = B / k, O = Math.min(1080, Math.round(sw));
+          const c = document.createElement("canvas"); c.width = c.height = O;
+          c.getContext("2d").drawImage(img, -x / k, -y / k, sw, sw, 0, 0, O, O);
+          out = new Promise((r) => c.toBlob(r, "image/jpeg", 0.85));
+        }
+        wrap.remove(); URL.revokeObjectURL(url); done(out);
+      };
+      wrap.querySelector(".ok").onclick = () => finish(true);
+      wrap.querySelector(".no").onclick = () => finish(false);
+    };
+    img.src = url;
+  });
+}
 async function uploadPhotos(p, files) {
   const list = photoNames(p), room = MAX_PHOTOS - list.length;
   files = [...files].slice(0, room);
   if (!files.length) return toast(`사진은 ${MAX_PHOTOS}장까지예요`);
+  const blobs = [];
+  for (let i = 0; i < files.length; i++) {
+    const b = await cropSquare(files[i], files.length > 1 ? `${i + 1}/${files.length}` : "");
+    if (b) blobs.push(await b);
+  }
+  if (!blobs.length) return;
+  files = blobs;
   const btn = $("#photoAdd"); if (btn) btn.classList.add("busy");
   let ok = 0;
   for (let i = 0; i < files.length; i++) {
     toast(`사진 올리는 중… ${i + 1}/${files.length}`);
     try {
-      const blob = await shrinkPhoto(files[i]); if (!blob) throw 0;
+      const blob = files[i]; if (!blob) throw 0;
       const v = Date.now().toString(36) + i;
       const up = await sb.storage.from("photos").upload(`${p.id}/${v}.jpg`, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
       if (up.error) throw up.error;
