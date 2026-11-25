@@ -88,9 +88,15 @@ button { cursor: pointer; }
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); padding: 6px 10px; border-radius: 999px; pointer-events: none; }
 @media (max-width: 719px) {
   /* 아이폰 세로: 지도 위, 목록 아래 (겹치지 않게) */
-  .main { grid-template-columns: 1fr; grid-template-rows: 48% minmax(0, 1fr); }
+  .main { grid-template-columns: 1fr; grid-template-rows: 48% minmax(0, 1fr); transition: grid-template-rows .45s cubic-bezier(.32,.72,0,1); }
   .maphint { display: none; }
+  /* 가게를 열면: 위 메뉴(제목·검색·칩)는 접고 로고만, 지도는 작게, 가게 정보는 넓게. 뒤로 가면 원래대로 */
+  .titlewrap, .searchrow, header .chips { max-height: 160px; transition: max-height .4s cubic-bezier(.32,.72,0,1), opacity .25s, margin .4s cubic-bezier(.32,.72,0,1); }
+  body.detailing .titlewrap, body.detailing .searchrow, body.detailing header .chips { max-height: 0; opacity: 0; margin-top: 0; margin-bottom: 0; overflow: hidden; pointer-events: none; }
+  body.detailing .toprow { min-height: 46px; }
+  body.detailing .main { grid-template-rows: 26% minmax(0, 1fr); }
 }
+@media (max-width: 719px) and (prefers-reduced-motion: reduce) { .main, .titlewrap, .searchrow, header .chips { transition: none; } }
 .prov { fill: var(--land); stroke: var(--land-stroke); stroke-width: .8; stroke-linejoin: round; transition: fill .3s; }
 .prov.focus { fill: var(--seoul); }
 .gu { fill: var(--seoul); stroke: var(--seoul-stroke); stroke-width: .6; stroke-linejoin: round; transition: fill .3s; }
@@ -1744,6 +1750,7 @@ $("#pDetail").addEventListener("click", async (e) => {
 });
 function select(p, fromHistory) {
   const prev = state.selected; state.selected = p;
+  document.body.classList.toggle("detailing", !!p);   // 아이폰: 가게 볼 때 위 메뉴 접고 아래 넓게
   if (!fromHistory) {
     if (p && !prev) history.pushState({ detail: p.id }, "");
     else if (p && prev) history.replaceState({ detail: p.id }, "");
