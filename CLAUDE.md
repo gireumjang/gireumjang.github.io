@@ -82,12 +82,12 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 
 ## 할 일 (우선순위 순)
 
-- [x] **배포 완료 (2026-11-24):** https://msroe84-web.github.io/hanjeom/ ← 저장소 https://github.com/msroe84-web/hanjeom (공개, main). `app/` 이나 워크플로가 바뀐 push 때마다 GitHub Actions가 자동 배포. 액션은 upload-pages-artifact@v5 + deploy-pages@v5 짝, 올리기(build)·게시(deploy)는 반드시 다른 job (한 job이면 'No artifacts named github-pages'로 자주 실패)
+- [x] **배포 완료 (2026-11-24):** https://gireumjang.github.io/ ← 저장소 https://github.com/gireumjang/gireumjang.github.io (공개, main. 2026-11-25에 msroe84-web/hanjeom 에서 조직 gireumjang 으로 옮김, 예전 주소는 안 열림). `app/` 이나 워크플로가 바뀐 push 때마다 GitHub Actions가 자동 배포. 액션은 upload-pages-artifact@v5 + deploy-pages@v5 짝, 올리기(build)·게시(deploy)는 반드시 다른 job (한 job이면 'No artifacts named github-pages'로 자주 실패)
   - 공개 저장소라 개인 정보 주의: 네이버 공유 폴더 ID·닉네임은 올리지 않음(ID는 `data/shares.json`), 옛 plist는 .gitignore
 - [x] **Supabase 연결 (2026-11-24):** 프로젝트 `oenmrkgudxjdenegjibj` (서울). 로그인은 이메일+비밀번호(메일 템플릿은 SMTP 없이 못 고쳐서 OTP 코드 방식 포기), 이메일 확인 끔, 새 가입 막음(계정 1개). 목록 위 '☁︎ 로그인' 버튼
   - 방문 기록·메모: `kv` 테이블. 기기에서 처음 로그인할 때만 기존 기록과 합치고(방문은 가게별 더 많은 쪽, 메모는 합침), 그다음부턴 클라우드 기준. 로그인 안 하면 예전처럼 localStorage만
   - 폰 동기화: 로컬 서버가 없으면 동기화 버튼이 `sync_requests`에 요청 → PC dev_server가 1분마다 확인해 처리(시험: 104초에 완료). 이 프로젝트는 새 테이블 권한을 자동으로 안 줘서 schema.sql에 grant 필요
-- [x] Supabase `transit` 함수 배포 (2026-11-24, 대시보드 편집기로 — `index.ts` 파일을 지우면 'Entrypoint path does not exist'). Verify JWT 끔, `ALLOW_ORIGIN=https://msroe84-web.github.io` (다른 주소는 403). 앱은 로컬이면 dev_server `/api/transit`, 배포 사이트면 `config.js`의 `transitProxy`. 함수 코드를 고치면 대시보드에 다시 붙여넣어 배포해야 함
+- [x] Supabase `transit` 함수 배포 (2026-11-24, 대시보드 편집기로 — `index.ts` 파일을 지우면 'Entrypoint path does not exist'). Verify JWT 끔, `ALLOW_ORIGIN=https://gireumjang.github.io` (다른 주소는 403). 앱은 로컬이면 dev_server `/api/transit`, 배포 사이트면 `config.js`의 `transitProxy`. 함수 코드를 고치면 대시보드에 다시 붙여넣어 배포해야 함
 - [x] 약속·투표 (2026-11-24): 출발지 모이면 이동시간 합 최소 3곳 자동 추천 → 전원 투표 시 자동 마감 → 같은 링크가 결과 화면 (`supabase/votes.sql`)
 - [x] (13회차) 상세: 별점만 이름 옆에 작게(`.drate`), 후기 수·블로그 수·한 줄 요약 뺌
 - [x] (13회차) 아이폰 핀 묶기: 화면 폭 720 미만에서만, 34px 칸마다 3개 이상이면 숫자 동그라미(`computeClusters`·`drawClusters`, 제철 있으면 주황). 거의 포개진 동그라미는 합침, 누르면 그 자리 2.6배 확대. 선택한 핀은 안 묶음
