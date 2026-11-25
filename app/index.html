@@ -225,8 +225,9 @@ h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: .3px; line-he
 .group { background: var(--cell); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
 .ghead { font-size: 13px; color: var(--label2); margin: 0 4px 6px; letter-spacing: .2px; }
 .row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 16px; position: relative; }
-.row + .row::before { content: ""; position: absolute; top: 0; left: 68px; right: 0; height: .5px; background: var(--sep); }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
 .row:active { background: var(--fill); }
+.vperson + .vperson::before { left: 68px; }   /* 약속 화면 사람 줄은 동그라미 옆부터 */
 .ico { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 21px; background: var(--fill); }
 .ico.season:has(.fimg), .ico:has(.fimg) { background: none; }   /* 음식 그림은 칸 없이 크게 */
 .ico.season { background: var(--season-soft); }
@@ -1365,7 +1366,6 @@ const fmtMin = (m) => (m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60
 // 제철 음식 그림 (app/food/{이름}.png). 그림 없는 음식은 이모지 그대로
 const FOOD_IMG = new Set("굴,방어,과메기,도루묵,양미리,도치,곰치,숭어,홍어,새조개,홍합,대구,생태,아귀,매생이,복어,꽃게,전어,대하,삼치,벚굴,주꾸미,도다리,참돔,바지락,멍게,성게,병어,농어,갯장어,민어,장어,전복,냉면,조개,낙지,고등어,갈치,한치,오징어,삼계탕,추어탕,버섯,나물,보쌈,전골,팥죽,떡국,콩국수,우럭".split(","));
 const fe = (key, emoji) => (FOOD_IMG.has(key) ? `<img class="fimg" src="food/${encodeURIComponent(key)}.png?v=1" alt="">` : emoji);
-const icon = (p) => (p.tags.length ? fe(p.tags[0].key, p.tags[0].emoji) : p.types && p.types[0] && TYPE[p.types[0]] ? TYPE[p.types[0]].emoji : "🍽️");
 const hl = (s) => {
   let out = esc(s);
   for (const w of state.q.split(/\s+/).filter(Boolean)) out = out.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
@@ -1387,7 +1387,6 @@ const rowHTML = (p) => {
   const t = transit(p);
   return `
   <button class="row" data-id="${esc(p.id)}">
-    <span class="ico ${p.tags.length ? "season" : ""}">${icon(p)}</span>
     <span class="rmain">
       <div class="rname${gradeOf(p) ? " hasg" : ""}"><span class="rn">${state.q ? hl(p.name) : esc(p.name)}</span>${gradeBadge(gradeOf(p))}</div>
       <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.key}</span>`).join("")}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
