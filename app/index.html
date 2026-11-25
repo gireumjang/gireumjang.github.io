@@ -204,6 +204,9 @@ h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: .3px; line-he
 .ico.season { background: var(--season-soft); }
 .rmain { flex: 1; min-width: 0; }
 .rname { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rname.hasg { display: flex; align-items: center; overflow: visible; padding: 2px 0; margin: -2px 0; }
+.rname .rn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rname .grade { flex: none; }
 .rsub { font-size: 13px; color: var(--label2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rhit { font-size: 13px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padding: 0 1px; }
@@ -476,6 +479,14 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .vwin .wn { font-size: 26px; font-weight: 700; margin: 2px 0; word-break: keep-all; }
 .vwin .wk { font-size: 14px; opacity: .92; }
 .vwin .ptimes span { background: rgba(255,255,255,.22); }
+
+/* PC 마우스: 가로로 넘기는 줄(지역·유형 칩, 제철 음식, 약속 날짜·시간)에 얇은 스크롤바 */
+@media (hover: hover) and (pointer: fine) {
+  .chips, .foodstrip, .dstrip { scrollbar-width: thin; scrollbar-color: var(--label3) transparent; padding-bottom: 8px; }
+  .chips::-webkit-scrollbar, .foodstrip::-webkit-scrollbar, .dstrip::-webkit-scrollbar { display: block; height: 6px; }
+  .chips::-webkit-scrollbar-thumb, .foodstrip::-webkit-scrollbar-thumb, .dstrip::-webkit-scrollbar-thumb { background: var(--label3); border-radius: 3px; }
+  .chips.hdragging, .foodstrip.hdragging, .dstrip.hdragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+}
 
 /* toast */
 #toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 40; transform: translate(-50%, -90px);
@@ -1287,7 +1298,7 @@ const rowHTML = (p) => {
   <button class="row" data-id="${esc(p.id)}">
     <span class="ico ${p.tags.length ? "season" : ""}">${icon(p)}</span>
     <span class="rmain">
-      <div class="rname">${state.q ? hl(p.name) : esc(p.name)}${gradeBadge(gradeOf(p))}</div>
+      <div class="rname${gradeOf(p) ? " hasg" : ""}"><span class="rn">${state.q ? hl(p.name) : esc(p.name)}</span>${gradeBadge(gradeOf(p))}</div>
       <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.emoji} ${x.key}</span>`).join("")}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
       ${searchHit(p)}
     </span>
@@ -2048,6 +2059,41 @@ $("#vCreate").onclick = async () => {
   $("#vTitle").value = ""; $("#vWant").value = ""; vDay = undefined; vTime = "19:00"; closeVoteNew(); openVote(data);
   toast("링크를 만들었어요. 나도 출발지를 넣어 주세요");
 };
+
+// ---------- PC 마우스로 가로 줄 넘기기: 세로 휠을 가로로, 마우스로 끌어서 넘기기 ----------
+// (아이폰은 손가락으로 밀면 되지만 PC 마우스는 가로로 넘길 방법이 없어서 뒤쪽 칩이 안 보였음)
+const HSEL = ".chips, .foodstrip, .dstrip";
+document.addEventListener("wheel", (e) => {
+  const el = e.target.closest && e.target.closest(HSEL);
+  if (!el || e.ctrlKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;   // 트랙패드 가로 밀기는 그대로
+  const max = el.scrollWidth - el.clientWidth; if (max <= 0) return;
+  const next = Math.max(0, Math.min(max, el.scrollLeft + e.deltaY));
+  if (next === el.scrollLeft) return;                                          // 끝까지 갔으면 원래대로 세로 스크롤
+  el.scrollLeft = next; e.preventDefault();
+}, { passive: false });
+let hdrag = null;
+document.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "mouse" || e.button !== 0) return;
+  const el = e.target.closest && e.target.closest(HSEL);
+  if (!el || el.scrollWidth <= el.clientWidth) return;
+  hdrag = { el, x: e.clientX, left: el.scrollLeft, moved: false };
+});
+addEventListener("pointermove", (e) => {
+  if (!hdrag) return;
+  const dx = e.clientX - hdrag.x;
+  if (!hdrag.moved && Math.abs(dx) > 5) { hdrag.moved = true; hdrag.el.classList.add("hdragging"); }
+  if (hdrag.moved) hdrag.el.scrollLeft = hdrag.left - dx;
+});
+addEventListener("pointerup", () => {
+  if (!hdrag) return;
+  const { el, moved } = hdrag; hdrag = null;
+  el.classList.remove("hdragging");
+  if (moved) { el.dataset.dragged = "1"; setTimeout(() => delete el.dataset.dragged, 0); }   // 끌고 놓은 건 누른 걸로 치지 않음
+});
+document.addEventListener("click", (e) => {
+  const el = e.target.closest && e.target.closest(HSEL);
+  if (el && el.dataset.dragged) { e.stopPropagation(); e.preventDefault(); }
+}, true);
 
 // ---------- 레이아웃: 지도 영역 크기에 맞춰 그린다 ----------
 let cur = "full";
