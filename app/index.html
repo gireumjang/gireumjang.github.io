@@ -370,9 +370,26 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .vcta { background: rgba(255,149,0,.13); }
 .vwanthint { font-size: 13px; color: var(--label2); min-height: 18px; margin: 6px 4px 0; }
 .vwanthint.none { color: var(--season); }
-.whenrow { display: flex; align-items: center; gap: 10px; height: 50px; margin-top: 8px; padding: 0 8px 0 14px; border-radius: 12px; background: var(--cell); font-size: 17px; }
-.whenrow span { flex: none; }
-.whenrow input { flex: 1; min-width: 0; height: 40px; text-align: right; font-size: 16px; color: var(--pin); background: none; outline: none; }
+/* 약속 날짜·시간: 아이폰 캘린더처럼 눌러서 고르는 칩 */
+.whenhead { display: flex; align-items: baseline; justify-content: space-between; margin: 16px 4px 8px; }
+.whenhead b { font-size: 17px; }
+.whenhead span { font-size: 15px; font-weight: 600; color: var(--pin); }
+.dstrip { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.dstrip::-webkit-scrollbar { display: none; }
+.dday { flex: none; width: 50px; height: 62px; border-radius: 14px; background: var(--cell); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  scroll-snap-align: start; transition: transform .25s cubic-bezier(.32,.72,0,1), background .2s, color .2s; }
+.dday small { font-size: 11px; font-weight: 600; color: var(--label2); }
+.dday b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dday.sat small { color: var(--pin); } .dday.sun small { color: #ff3b30; }
+.dday.on { background: var(--pin); color: #fff; transform: scale(1.04); }
+.dday.on small { color: rgba(255,255,255,.85); }
+.dday.none { width: auto; padding: 0 12px; }
+.dday.none b { font-size: 14px; }
+.dday:active, .dtime:active { transform: scale(.94); }
+.tstrip { margin-top: 6px; }
+.dtime { flex: none; height: 36px; padding: 0 13px; border-radius: 999px; background: var(--cell); font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums;
+  scroll-snap-align: start; transition: transform .25s cubic-bezier(.32,.72,0,1), background .2s, color .2s; }
+.dtime.on { background: var(--pin); color: #fff; font-weight: 600; }
 .vchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .vchips .vwant { margin: 0; }
 .vwant.when { background: rgba(0,122,255,.12); color: var(--pin); }
@@ -523,7 +540,9 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
     <div class="field"><input id="vTitle" placeholder="약속 이름 (예: 12월 송년회)" maxlength="40" enterkeyhint="done"></div>
     <div class="field" style="margin-top:8px"><input id="vWant" placeholder="먹고 싶은 것 (예: 도루묵) · 비우면 전체" maxlength="20" enterkeyhint="done"></div>
     <div class="vwanthint" id="vWantHint"></div>
-    <label class="whenrow"><span>언제</span><input id="vWhen" type="datetime-local" step="1800"></label>
+    <div class="whenhead"><b>언제</b><span id="vWhenTxt"></span></div>
+    <div class="dstrip" id="vDays"></div>
+    <div class="dstrip tstrip" id="vTimes"></div>
     <div class="vwanthint">그날 쉬는 곳은 빼고, 그 시간에 맞춰 이동시간을 계산해요</div>
     <div class="stepper"><span>모일 인원 (나 포함)</span><div><button id="vMinus" aria-label="한 명 줄이기">−</button><b id="vSize">4명</b><button id="vPlus" aria-label="한 명 늘리기">+</button></div></div>
     <div class="msg" id="vNewMsg"></div>
@@ -1912,15 +1931,37 @@ $("#vBody").addEventListener("input", (e) => { if (e.target.id === "vLoc" && VS.
 
 // 약속 만들기 (로그인한 나만)
 let vSize = 4;
+// 날짜는 오늘부터 며칠 뒤인지(null = 안 정함), 시간은 'HH:MM'
+let vDay, vTime = "19:00";
+const TIMES = Array.from({ length: 25 }, (_, i) => { const m = 11 * 60 + i * 30; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 ? "30" : "00"}`; });
+const dayAt = (n) => { const t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + n); return t; };
+function meetAtOf() {
+  if (vDay == null) return null;
+  const t = dayAt(vDay), [h, m] = vTime.split(":").map(Number); t.setHours(h, m); return t;
+}
+function renderWhen(scroll) {
+  const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  $("#vDays").innerHTML = `<button class="dday none ${vDay == null ? "on" : ""}" data-day=""><b>안 정함</b></button>` +
+    Array.from({ length: 21 }, (_, i) => { const t = dayAt(i), w = t.getDay();
+      return `<button class="dday ${w === 6 ? "sat" : w === 0 ? "sun" : ""} ${vDay === i ? "on" : ""}" data-day="${i}"><small>${i === 0 ? "오늘" : i === 1 ? "내일" : t.getDate() === 1 ? `${t.getMonth() + 1}월` : DOW[w]}</small><b>${t.getDate()}</b></button>`; }).join("");
+  $("#vTimes").innerHTML = TIMES.map((x) => { const h = +x.slice(0, 2);
+    return `<button class="dtime ${vTime === x ? "on" : ""}" data-time="${x}">${h < 12 ? "오전" : "오후"} ${h > 12 ? h - 12 : h}:${x.slice(3)}</button>`; }).join("");
+  $("#vTimes").style.display = vDay == null ? "none" : "";
+  const m = meetAtOf();
+  $("#vWhenTxt").textContent = m ? fmtWhen(m.toISOString()) : "날짜 없이 장소만 정해요";
+  if (scroll) requestAnimationFrame(() => {
+    for (const el of [$("#vDays .on"), $("#vTimes .on")]) if (el) el.parentNode.scrollLeft = el.offsetLeft - el.parentNode.clientWidth / 2 + el.offsetWidth / 2;
+  });
+}
+$("#vDays").addEventListener("click", (e) => { const b = e.target.closest("[data-day]"); if (!b) return; vDay = b.dataset.day === "" ? null : +b.dataset.day; renderWhen(); });
+$("#vTimes").addEventListener("click", (e) => { const b = e.target.closest("[data-time]"); if (!b) return; vTime = b.dataset.time; renderWhen(); });
+vDay = new Date().getHours() >= 17 ? 1 : 0; renderWhen();
 const VSTAT = { gather: "모으는 중", computing: "후보 고르는 중", voting: "투표 중", closed: "끝남" };
 async function openVoteNew() {
   if (!cloudUser) return openAuth();
   $("#vNewMsg").textContent = ""; wantHint();
-  if (!$("#vWhen").value) {
-    const t = new Date(); if (t.getHours() >= 17) t.setDate(t.getDate() + 1);
-    const pad = (x) => String(x).padStart(2, "0");
-    $("#vWhen").value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T19:00`;
-  } $("#vSize").textContent = `${vSize}명`; $("#vRecent").innerHTML = "";
+  if (vDay === undefined) vDay = new Date().getHours() >= 17 ? 1 : 0;
+  renderWhen(true); $("#vSize").textContent = `${vSize}명`; $("#vRecent").innerHTML = "";
   $("#voteModal").classList.add("on");
   const { data } = await sb.rpc("my_votes");
   if (data && data.length) $("#vRecent").innerHTML = `<div class="ghead" style="margin-top:18px">최근 약속</div><div class="group">${data.slice(0, 5).map((v) => `
@@ -1942,12 +1983,10 @@ $("#vCreate").onclick = async () => {
   if (want && !wantPlaces(want).length) return ($("#vNewMsg").textContent = `저장한 곳 중에 ${want} 파는 곳이 없어요. 다른 말로 써 볼까요?`);
   const title = $("#vTitle").value.trim() || (want ? `${want} 먹는 날` : `${state.month}월 약속`);
   $("#vNewMsg").textContent = "만드는 중…";
-  const whenV = $("#vWhen").value;
-  const meetAt = whenV ? new Date(whenV) : null;
-  if (meetAt && isNaN(meetAt)) return ($("#vNewMsg").textContent = "날짜를 다시 골라 주세요");
+  const meetAt = meetAtOf();
   const { data, error } = await sb.rpc("create_vote", { p_title: title, p_size: vSize, p_want: want || null, p_meet_at: meetAt ? meetAt.toISOString() : null });
   if (error) return ($("#vNewMsg").textContent = verr(error));
-  $("#vTitle").value = ""; $("#vWant").value = ""; $("#vWhen").value = ""; closeVoteNew(); openVote(data);
+  $("#vTitle").value = ""; $("#vWant").value = ""; vDay = undefined; vTime = "19:00"; closeVoteNew(); openVote(data);
   toast("링크를 만들었어요. 나도 출발지를 넣어 주세요");
 };
 
