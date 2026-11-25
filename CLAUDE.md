@@ -35,6 +35,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 | `scripts/dev_server.py` | 로컬 서버 + 네이버 대중교통 경로 중계 + 동기화 실행·진행 조회 |
 | `supabase/votes.sql` | 약속·투표 테이블(`votes`, `vote_people`)과 함수. 테이블은 아무도 직접 못 읽고, 친구(anon)는 투표 ID를 넘기는 함수로만 그 약속 하나를 읽고 씀. SQL Editor에서 다시 실행해도 안전 |
 | `supabase/grades.sql` | 내 등급(`grades`: place_id → S·A·B·C). 누구나(anon) 읽기, 로그인한 본인만 쓰기. SQL Editor에서 다시 실행해도 안전 |
+| `supabase/says.sql` | 내 한마디(`says`: place_id → say 120자·dish 40자 '꼭 시킬 것'). 누구나 읽기, 로그인한 본인만 쓰기. 상세(친구에게만 상자로 보임, 나는 입력칸)·목록 줄(💬)에 나옴 |
 | `supabase/schema.sql` | Supabase 테이블·RLS·권한 (`kv`: 방문 기록·메모, `sync_requests`: 폰 동기화 요청). SQL Editor에서 다시 실행해도 안전 |
 | `scripts/com.matjip.weekly.plist` | 예전 맥의 주간 자동 수집 설정. 더 안 씀 |
 | `supabase/functions/transit` | 배포 후 대중교통 중계 (dev_server의 /api/transit 과 같은 일) |
@@ -102,4 +103,4 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 - 화면 변경 후에는 브라우저에서 아이폰(375×812)·넓은 화면 둘 다 확인.
 - **PC 마우스로도 확인:** 가로로 넘기는 줄(`.chips`·`.foodstrip`·`.dstrip`)은 아이폰은 손가락으로 밀지만 PC는 휠·끌기로만 넘어간다 (`HSEL` 처리). 새로 가로 줄을 만들면 `HSEL`에 넣고, 실제 휠·끌기로 끝까지 보이는지 확인할 것 (2026-11-25 날짜·시간 칩이 PC에서 안 넘어가 뒤쪽 시간이 안 보였음).
 - 확인용 링크는 claude.ai 아티팩트 말고 localhost 주소로 준다 (사용자가 브라우저에서 직접 열어봄).
-- 네이버로 넘기는 링크는 넣지 않는다 (정보는 앱 안에서 끝).
+- 네이버로 넘기는 링크는 넣지 않는다 (정보는 앱 안에서 끝). 예외: 상세의 '길찾기'(2026-11-25) — 네이버지도·카카오맵·애플 지도의 **길안내 화면**만 연다(`openRoute`, 폰은 앱 주소 `nmap://`·`kakaomap://`, 앱이 없거나 PC면 웹 주소). 가게 소개 페이지로는 보내지 않는다.

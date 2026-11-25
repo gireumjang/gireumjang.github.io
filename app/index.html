@@ -296,6 +296,20 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .gbtn.on.gB { background: var(--pin); }
 .gbtn.on.gC { background: var(--label3); }
 @media (prefers-reduced-motion: reduce) { .grade, .grade::after, .grade::before { animation: none !important; } }
+/* 내 한마디 (친구도 봄) · 길찾기 */
+.saybox { background: var(--cell); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; border-left: 3px solid var(--pin); }
+.sayt { font-size: 16px; line-height: 1.45; font-weight: 500; }
+.sayd { margin-top: 6px; font-size: 14px; color: var(--label2); }
+.sayd b { color: var(--label); margin-right: 6px; }
+.rsay { font-size: 13px; color: var(--label2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sayin { display: block; width: 100%; margin-top: 10px; padding: 10px 2px 0; border: 0; border-top: .5px solid var(--sep); background: transparent;
+  color: var(--label); font: inherit; font-size: 15px; outline: none; }
+.sayin::placeholder { color: var(--label3); }
+.route { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.route > span { font-size: 13px; font-weight: 600; color: var(--label2); margin-right: 2px; white-space: nowrap; }
+.route button { flex: 1; min-width: 0; height: 40px; border-radius: 12px; background: var(--fill); font-size: 14px; font-weight: 600; color: var(--label);
+  white-space: nowrap; transition: transform .2s cubic-bezier(.32,.72,0,1); }
+.route button:active { transform: scale(.94); }
 .visitbox { background: var(--cell); border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; }
 .visitrow { display: flex; align-items: center; gap: 10px; }
 .memo { display: block; width: 100%; margin-top: 10px; padding: 10px 2px 0; border: 0; border-top: .5px solid var(--sep); background: transparent;
@@ -1198,6 +1212,7 @@ let grades = store.get("grades") || {};          // {placeId: "S"} 내 등급, �
 const GRADES = ["S", "A", "B", "C"], GW = { S: 4, A: 3, B: 2, C: 1 };
 const gradeOf = (p) => grades[p.id] || null;
 const gradeBadge = (g, big) => (g ? `<span class="grade g${g}${big ? " big" : ""}" aria-label="${g}등급">${g}</span>` : "");
+let says = store.get("says") || {};              // {placeId: {say, dish}} 내 한마디, 친구도 봄 (supabase/says.sql)
 let notes = store.get("notes") || {};            // {placeId: "메모"}
 function typePrefs() {
   const c = {}; let total = 0;
@@ -1258,6 +1273,43 @@ async function loadGrades() {
   store.set("grades", grades); prefs = typePrefs();
   refresh(); if (state.selected) renderDetail(state.selected);
   migrateVisits();
+}
+// ---------- 내 한마디: says 테이블 — 누구나 읽고, 로그인한 나만 씀 ----------
+async function loadSays() {
+  if (!sb) return;
+  const { data, error } = await sb.from("says").select("place_id,say,dish");
+  if (error || !data) return;
+  says = Object.fromEntries(data.filter((r) => r.say || r.dish).map((r) => [r.place_id, { say: r.say, dish: r.dish }]));
+  store.set("says", says); renderList(); if (state.selected && !cloudUser) renderDetail(state.selected);
+}
+const sayTimers = {};
+function saveSay(p) {
+  const say = ($("#sayIn")?.value || "").trim(), dish = ($("#dishIn")?.value || "").trim();
+  if (say || dish) says[p.id] = { say, dish }; else delete says[p.id];
+  store.set("says", says);
+  clearTimeout(sayTimers[p.id]);
+  sayTimers[p.id] = setTimeout(async () => {
+    const { error } = say || dish ? await sb.from("says").upsert({ place_id: p.id, say, dish, updated_at: new Date().toISOString() })
+      : await sb.from("says").delete().eq("place_id", p.id);
+    if (error) toast("한마디를 저장하지 못했어요"); else renderList();
+  }, 700);
+}
+// 길찾기: 가게 페이지가 아니라 길안내 화면으로 바로 (정보는 앱 안에서 끝, 가는 길만 지도 앱에)
+const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const IS_APPLE = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
+function openRoute(kind, p) {
+  const n = encodeURIComponent(p.name.replace(/,/g, " "));
+  const R = {
+    naver: [`nmap://route/public?dlat=${p.lat}&dlng=${p.lng}&dname=${n}&appname=gireumjang.github.io`, `https://map.naver.com/p/directions/-/${p.lng},${p.lat},${n},,/-/transit`],
+    kakao: [`kakaomap://route?ep=${p.lat},${p.lng}&by=PUBLICTRANSIT`, `https://map.kakao.com/link/to/${n},${p.lat},${p.lng}`],
+    apple: [null, `https://maps.apple.com/?daddr=${p.lat},${p.lng}&dirflg=r`],
+  }[kind];
+  if (!R) return;
+  const [app, web] = R;
+  if (IS_MOBILE && app) {
+    location.href = app;
+    setTimeout(() => { if (!document.hidden) window.open(web, "_blank"); }, 1600);   // 앱이 없으면 웹 지도로
+  } else window.open(web, "_blank");
 }
 // 처음 한 번만: 예전 방문 횟수를 등급으로 (20번+ S · 10번+ A · 5번+ B · 그 밖 C). 등급이 하나라도 있으면 안 함
 async function migrateVisits() {
@@ -1390,6 +1442,7 @@ const rowHTML = (p) => {
     <span class="rmain">
       <div class="rname${gradeOf(p) ? " hasg" : ""}"><span class="rn">${state.q ? hl(p.name) : esc(p.name)}</span>${gradeBadge(gradeOf(p))}</div>
       <div class="rsub">${closedToday(p) ? '<span class="tag off">오늘 휴무</span>' : ""}${p.tags.map((x) => `<span class="tag">${x.key}</span>`).join("")}${p.chain ? '<span class="tag gray">체인·지점</span>' : p.main ? '<span class="tag gray">본점</span>' : ""}${p.rating ? `<span class="star">★ ${(p.wk && p.wk.avgRating || p.rating).toFixed(2)}</span> · ` : ""}${esc([p.reviewMenus && p.reviewMenus[0] ? p.reviewMenus.slice(0, 2).map((m) => m.name).join(" · ") : (p.kind || ""), p.area].filter(Boolean).join(" · "))}</div>
+      ${says[p.id] && (says[p.id].say || says[p.id].dish) ? `<div class="rsay">💬 ${esc(says[p.id].say || "꼭 시킬 것: " + says[p.id].dish)}</div>` : ""}
       ${searchHit(p)}
     </span>
     ${t ? `<span class="rt"><b>${fmtMin(t.min)}</b>${t.km.toFixed(1)}km</span>` : '<span class="chev">›</span>'}
@@ -1556,9 +1609,13 @@ function renderDetail(p) {
     <div class="dbar"><button class="back" id="back">‹ 목록으로<small>Esc · 스와이프 · 브라우저 뒤로</small></button></div>
     <div class="dname">${esc(p.name)}${gradeBadge(gradeOf(p), true)}${rating ? `<span class="drate">★ ${rating.toFixed(2)}</span>` : ""}</div>
     <div class="dsub">${esc(p.kind || p.cat || "음식점")} · ${esc(p.region)} ${esc(p.area || "")}${p.chain ? " · 체인·지점" : p.main ? " · 본점" : ""}</div>
+    ${!cloudUser && says[p.id] ? `<div class="saybox">${says[p.id].say ? `<div class="sayt">“${esc(says[p.id].say)}”</div>` : ""}${says[p.id].dish ? `<div class="sayd"><b>꼭 시킬 것</b>${esc(says[p.id].dish)}</div>` : ""}</div>` : ""}
     ${(() => { const o = openInfo(p); return o.known ? `<div class="openrow ${o.closed ? "closed" : o.open ? "open" : ""}"><b>${o.closed ? "오늘 휴무" : o.inBreak ? "브레이크타임" : o.open ? "영업 중" : "영업 전·후"}</b><span>${esc(o.text)}</span></div>` : ""; })()}
+    ${p.lat && p.lng ? `<div class="route"><span>길찾기</span><button data-route="naver">네이버지도</button><button data-route="kakao">카카오맵</button>${IS_APPLE ? '<button data-route="apple">애플 지도</button>' : ""}</div>` : ""}
     ${cloudUser ? `<div class="visitbox">
       <div class="graderow"><span>내 등급<small>${gradeOf(p) ? "다시 누르면 지워져요" : "친구에게도 보여요"}</small></span><div class="gpick">${GRADES.map((g) => `<button class="gbtn ${gradeOf(p) === g ? "on g" + g : ""}" data-grade="${g}" aria-label="${g}등급">${g}</button>`).join("")}</div></div>
+      <input class="sayin" id="sayIn" maxlength="120" placeholder="한마디 (친구에게도 보여요)" value="${esc((says[p.id] || {}).say || "")}">
+      <input class="sayin" id="dishIn" maxlength="40" placeholder="꼭 시킬 메뉴 (친구에게도 보여요)" value="${esc((says[p.id] || {}).dish || "")}">
       <textarea class="memo" id="memo" rows="1" placeholder="메모 (나만 보여요)" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>` : ""}
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
@@ -1584,6 +1641,7 @@ function renderDetail(p) {
 }
 function fitMemo() { const m = $("#memo"); if (m) { m.style.height = "auto"; m.style.height = m.scrollHeight + "px"; } }
 $("#pDetail").addEventListener("input", (e) => {
+  if ((e.target.id === "sayIn" || e.target.id === "dishIn") && state.selected) return saveSay(state.selected);
   if (e.target.id !== "memo" || !state.selected) return;
   const v = e.target.value.trim();
   if (v) notes[state.selected.id] = e.target.value; else delete notes[state.selected.id];
@@ -1592,6 +1650,8 @@ $("#pDetail").addEventListener("input", (e) => {
 $("#pDetail").addEventListener("click", async (e) => {
   const gb = e.target.closest("[data-grade]");
   if (gb && state.selected) return setGrade(state.selected, gb.dataset.grade);
+  const rb = e.target.closest("[data-route]");
+  if (rb && state.selected) return openRoute(rb.dataset.route, state.selected);
   const c = e.target.closest("[data-copy]"); if (!c) return;
   try { await navigator.clipboard.writeText(c.dataset.copy); toast("복사했어요"); } catch { toast("복사하지 못했어요"); }
 });
@@ -2209,6 +2269,7 @@ if (state.me) { $("#locTxt").textContent = state.me.label; $("#locBtn").classLis
 refresh(); layout();
 syncPoll();
 loadGrades();
+loadSays();
 // 투표 링크(#v=…)로 들어왔으면 투표 화면부터
 function voteFromHash() {
   const m = location.hash.match(/^#v=([0-9a-f]{32})$/);
