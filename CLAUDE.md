@@ -25,7 +25,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 | `app/places.js` `geo.js` `types.js` | `build_data.py` 가 만드는 데이터 (직접 수정 금지) |
 | `app/dong/{도 코드}.json` | `build_dong.py` 가 만드는 행정동 경계·이름 (도별 17개, 합계 약 5MB). 시·군·구를 눌렀을 때 그 도 파일만 받는다 |
 | `scripts/build_dong.py` | `data/geo_raw/HangJeongDong_ver*.geojson`(가장 최신) → `app/dong/`. 지도의 시·군·구 자료가 예전 경계라 이름 대신 동 중심점 위치로 묶음 |
-| `app/food/{음식 이름}.png` | 제철 음식 그림 50개 (2026-11-25, ChatGPT 그림판을 잘라 만듦, 약 120px 투명 PNG). `index.html`의 `FOOD_IMG`에 있는 이름만 그림, 나머지는 `season.js` 이모지. 가자미·대게·꼬막은 아직 없음. 그림을 넣으면 `FOOD_IMG`에 이름 추가 |
+| `app/food/{음식 이름}.png` | 제철 음식 그림 53개 전부 (2026-11-25 50개는 ChatGPT 그림판을 잘라 약 120px, 11-26 가자미·대게·꼬막 160px 추가 — 검은 바탕은 지워서 투명 PNG). `index.html`의 `FOOD_IMG`에 있는 이름만 그림, 나머지는 `season.js` 이모지. 그림을 넣으면 `FOOD_IMG`에 이름 추가 |
 | `app/config.js` | 배포용 설정 (`transitProxy`) |
 | `scripts/sync.py` | '지금 동기화': 저장 목록(raw) 다시 받기 → 새 가게·실패했던 가게만 수집 → 전화 보강 → 빌드 → `publish()`(app/ 바뀐 것만 커밋·push → 자동 배포) |
 | `scripts/collect_naver.py` | 저장 가게마다 네이버 플레이스 홈 1페이지 → `data/naver/{sid}.json` (메뉴·가격·후기 요약·키워드·별점·영업시간). 기본은 아직 안 받은 곳만, `--refresh`면 전부 |
