@@ -468,6 +468,22 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .smodal .field button { flex: none; width: 74px; border-radius: 12px; background: var(--fill); font-weight: 600; color: var(--pin); }
 .smodal .msg { font-size: 13px; color: var(--season); min-height: 18px; margin-top: 8px; }
 .smodal [hidden] { display: none !important; }
+/* 방문자 수 (로그인한 나만) */
+.stat4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 2px 0 12px; }
+.stat4 div { background: var(--cell); border-radius: 12px; padding: 9px 4px 8px; text-align: center; }
+.stat4 b { display: block; font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat4 span { font-size: 12px; color: var(--label2); }
+.statbars { display: flex; align-items: flex-end; gap: 3px; height: 54px; margin: 0 0 4px; }
+.statbars i { flex: 1; background: var(--pin); opacity: .8; border-radius: 3px 3px 0 0; min-height: 2px; }
+.statbars i.zero { background: var(--fill); opacity: 1; }
+.statcap { font-size: 12px; color: var(--label2); margin: 0 0 12px; display: flex; justify-content: space-between; }
+.stathead { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+.stattop { margin: 0; padding: 0; list-style: none; background: var(--cell); border-radius: 12px; }
+.stattop li { display: flex; gap: 8px; padding: 9px 12px; font-size: 14px; border-top: 0.5px solid var(--sep); }
+.stattop li:first-child { border-top: 0; }
+.stattop li span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stattop li span:last-child { color: var(--label2); font-variant-numeric: tabular-nums; }
+.statnote { font-size: 13px; color: var(--label2); margin: 0 0 4px; }
 
 /* 약속·투표 */
 .smodal .card { max-height: calc(100% - 40px); overflow-y: auto; }
@@ -659,6 +675,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
       <button class="bigbtn primary" id="authIn">로그인</button>
       <button class="bigbtn plain" id="authUp">처음이면 계정 만들기</button>
     </div>
+    <div id="statBox" hidden></div>
     <button class="bigbtn plain" id="authOut" hidden>로그아웃</button>
   </div>
 </div>
@@ -1307,8 +1324,44 @@ async function cloudPull() {
 if (sb) sb.auth.onAuthStateChange((ev, session) => {
   cloudUser = session ? session.user : null;
   showAuthState();
-  if (cloudUser && pulledFor !== cloudUser.id) { pulledFor = cloudUser.id; setTimeout(cloudPull, 0); }
+  if (cloudUser && pulledFor !== cloudUser.id) { pulledFor = cloudUser.id; setTimeout(cloudPull, 0); setTimeout(loadStats, 0); }
 });
+// ---------- 방문자 수 (supabase/visits.sql): 기기마다 아무 뜻 없는 번호로 하루 1번. 숫자는 로그인한 나만 봄 ----------
+const DEVICE = (() => {
+  let d = store.get("device");
+  if (typeof d !== "string" || d.length < 8) {
+    d = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    store.set("device", d);
+  }
+  return d;
+})();
+const hitDone = new Set();
+function hit(kind, ref = "") {
+  if (!sb || /^(localhost|127\.|\[::1\])/.test(location.hostname)) return;   // 내 PC 시험은 안 셈
+  const k = kind + ":" + ref; if (hitDone.has(k)) return; hitDone.add(k);
+  sb.rpc("hit", { p_device: DEVICE, p_kind: kind, p_ref: ref }).then(() => {}, () => {});
+}
+let stat = null;
+async function loadStats() {
+  if (!sb || !cloudUser) return;
+  const { data, error } = await sb.rpc("hit_stats");
+  if (error || !data) { stat = null; return; }
+  stat = data; showAuthState();
+}
+function statHTML() {
+  if (!stat) return `<p class="statnote">방문자 수를 불러오지 못했어요. supabase/visits.sql 을 실행했는지 확인해 주세요.</p>`;
+  const kst = (off) => new Date(Date.now() + 9 * 3600e3 - off * 864e5).toISOString().slice(0, 10);
+  const byDay = Object.fromEntries((stat.days || []).map((x) => [x.d, x.n]));
+  const days = Array.from({ length: 14 }, (_, i) => byDay[kst(13 - i)] || 0), max = Math.max(1, ...days);
+  const top = (stat.top || []).map((x) => ({ p: places.find((q) => q.id === x.id), n: x.n })).filter((x) => x.p);
+  return `<div class="stat4"><div><b>${stat.today}</b><span>오늘</span></div><div><b>${stat.week}</b><span>7일</span></div>
+    <div><b>${stat.month}</b><span>30일</span></div><div><b>${stat.total}</b><span>전체</span></div></div>
+    <div class="statbars" aria-label="최근 14일 방문자">${days.map((n) => `<i class="${n ? "" : "zero"}" style="height:${Math.round((n / max) * 100)}%" title="${n}명"></i>`).join("")}</div>
+    <div class="statcap"><span>14일 전</span><span>오늘</span></div>
+    <p class="statnote">최근 30일 링크로 들어옴: 가게 공유 ${stat.share}번 · 약속 ${stat.vote}번</p>
+    ${top.length ? `<div class="stathead">최근 30일 많이 열어 본 가게</div><ol class="stattop">${top.map((x) => `<li><span>${esc(x.p.name)}</span><span>${x.n}번</span></li>`).join("")}</ol>` : ""}
+    <p class="statnote" style="margin-top:10px">기기마다 하루 1명으로 세요. 나도 포함돼요.</p>`;
+}
 // ---------- 내 등급: grades 테이블 (supabase/grades.sql) — 누구나 읽고, 로그인한 나만 씀 ----------
 let gradesLoaded = false;
 async function loadGrades() {
@@ -1533,17 +1586,18 @@ async function setGrade(p, g) {
   if (g) toast(`${g}등급으로 정했어요`);
 }
 function showAuthState() {
-  const b = $("#authBtn"); if (b) b.textContent = cloudUser ? "☁︎ 저장 중" : "☁︎ 로그인";
+  const b = $("#authBtn"); if (b) b.textContent = (cloudUser ? (stat ? `👀 오늘 ${stat.today}명` : "☁︎ 저장 중") : "☁︎ 로그인");
+  $("#statBox").hidden = !cloudUser; if (cloudUser) $("#statBox").innerHTML = statHTML();
   $("#authOut").hidden = !cloudUser;
-  $("#authTitle").textContent = cloudUser ? "기록이 저장되고 있어요" : "기록 저장 로그인";
+  $("#authTitle").textContent = cloudUser ? "👀 방문자" : "기록 저장 로그인";
   $("#authDesc").textContent = cloudUser
-    ? `${cloudUser.email} 계정으로 방문 기록·메모가 저장돼요. 다른 기기에서도 같은 이메일로 로그인하면 똑같이 보여요.`
+    ? `${cloudUser.email} 로 로그인했어요. 등급·한마디·메모가 저장되고, 아래 숫자는 나만 봐요.`
     : "로그인하면 방문 기록·메모가 폰과 PC에서 똑같이 보여요. 친구에게 보낸 링크로는 기록이 보이지 않아요.";
   $("#authForm").hidden = !!cloudUser;
   if (state.selected) renderDetail(state.selected);
   if (sync.available || cloudUser) renderList();
 }
-function openAuth() { $("#authMsg").textContent = ""; $("#authPw").value = ""; showAuthState(); $("#authModal").classList.add("on"); }
+function openAuth() { $("#authMsg").textContent = ""; $("#authPw").value = ""; showAuthState(); $("#authModal").classList.add("on"); loadStats(); }
 function closeAuth() { $("#authModal").classList.remove("on"); }
 $("#authDim").onclick = closeAuth;
 function authInput() {
@@ -1702,7 +1756,7 @@ function renderList() {
   const title = state.q ? `“${esc(state.q)}”` : esc(where) + (state.type ? ` · ${TYPE[state.type].label}` : "") + (state.grade ? ` · ${state.grade}등급` : "");
   const homeView = f.type === "home" && !state.q && !state.type && !state.grade;
   const showSync = (sync.available || cloudUser) && homeView;
-  h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}${sb && homeView ? `<button class="syncbtn" id="authBtn">${cloudUser ? "☁︎ 저장 중" : "☁︎ 로그인"}</button>` : ""}</span></div>`;
+  h += `<div class="sheet-head"><h2>${title}</h2><span>${scope.length}곳${showSync ? `<button class="syncbtn" id="syncBtn">${syncLabel()}</button>` : ""}${sb && homeView ? `<button class="syncbtn" id="authBtn">${(cloudUser ? (stat ? `👀 오늘 ${stat.today}명` : "☁︎ 저장 중") : "☁︎ 로그인")}</button>` : ""}</span></div>`;
   h += `<div class="seg" id="seg">
     <button data-sort="default" class="${state.sort === "default" ? "on" : ""}">추천순</button>
     <button data-sort="rating" class="${state.sort === "rating" ? "on" : ""}">별점순</button>
@@ -1859,6 +1913,7 @@ let backSnap = null;
 function select(p, fromHistory) {
   const prev = state.selected; state.selected = p;
   if (p && !prev) backSnap = { focus: state.focus, cam: [cam.lng.t, cam.lat.t, cam.d.t, cam.r0.t], uz: [uz.z.t, uz.x.t, uz.y.t], scroll: $("#pList").scrollTop };
+  if (p) hit("place", p.id);
   document.body.classList.toggle("detailing", !!p);   // 아이폰: 가게 볼 때 위 메뉴 접고 아래 넓게
   if (!fromHistory) {
     if (p && !prev) history.pushState({ detail: p.id }, "");
@@ -2492,6 +2547,7 @@ refresh(); layout();
 syncPoll();
 loadGrades();
 loadSays();
+hit("open", /^#p=/.test(location.hash) ? "share" : /^#v=/.test(location.hash) ? "vote" : "");
 // 투표 링크(#v=…)로 들어왔으면 투표 화면부터
 function voteFromHash() {
   const m = location.hash.match(/^#v=([0-9a-f]{32})$/);
