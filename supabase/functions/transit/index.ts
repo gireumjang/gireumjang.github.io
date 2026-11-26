@@ -19,7 +19,8 @@ const cors = (origin: string | null) => ({
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
   if (req.method === "OPTIONS") return new Response(null, { headers: cors(origin) });
-  if (ALLOW.length && origin && !ALLOW.includes(origin)) return new Response("forbidden", { status: 403 });
+  // 내 사이트에서 온 요청만 (주소가 안 붙은 요청도 막음 — 브라우저는 다른 사이트로 보낼 때 항상 Origin을 붙임)
+  if (ALLOW.length && (!origin || !ALLOW.includes(origin))) return new Response("forbidden", { status: 403 });
 
   const u = new URL(req.url);
   const start = u.searchParams.get("start") ?? "", goal = u.searchParams.get("goal") ?? "";
