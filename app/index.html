@@ -1338,8 +1338,8 @@ function saveSay(p) {
     if (error) toast("한마디를 저장하지 못했어요"); else renderList();
   }, 700);
 }
-// ---------- 내가 찍은 사진 (최대 5장, 첫 장이 대표): Storage 'photos/{가게}/{이름}.jpg' (supabase/photos.sql), 이름 목록은 says.photo (쉼표) ----------
-const MAX_PHOTOS = 5;
+// ---------- 내가 찍은 사진 (최대 10장, 첫 장이 대표): Storage 'photos/{가게}/{이름}.jpg' (supabase/photos.sql), 이름 목록은 says.photo (쉼표) ----------
+const MAX_PHOTOS = 10;
 const photoNames = (p) => ((says[p.id] || {}).photo || "").split(",").filter(Boolean);
 const photoSrc = (p, v) => `${CFG.supabaseUrl}/storage/v1/object/public/photos/${encodeURIComponent(p.id)}/${v}.jpg`;
 async function savePhotoList(p, list) {
@@ -1807,8 +1807,11 @@ $("#pDetail").addEventListener("click", async (e) => {
   const c = e.target.closest("[data-copy]"); if (!c) return;
   try { await navigator.clipboard.writeText(c.dataset.copy); toast("복사했어요"); } catch { toast("복사하지 못했어요"); }
 });
+// 가게를 열기 직전 화면(지역·지도 위치·확대·목록 스크롤)을 기억했다가, 뒤로 가면 그대로 돌려놓는다
+let backSnap = null;
 function select(p, fromHistory) {
   const prev = state.selected; state.selected = p;
+  if (p && !prev) backSnap = { focus: state.focus, cam: [cam.lng.t, cam.lat.t, cam.d.t, cam.r0.t], uz: [uz.z.t, uz.x.t, uz.y.t], scroll: $("#pList").scrollTop };
   document.body.classList.toggle("detailing", !!p);   // 아이폰: 가게 볼 때 위 메뉴 접고 아래 넓게
   if (!fromHistory) {
     if (p && !prev) history.pushState({ detail: p.id }, "");
@@ -1825,6 +1828,14 @@ function select(p, fromHistory) {
     snap("half");
   } else {
     $("#pList").classList.remove("left"); $("#pDetail").classList.add("right");
+    if (prev && backSnap) {
+      const b = backSnap; backSnap = null;
+      if (state.focus !== b.focus) setFocusKeep(b.focus);
+      pendingFit = null;
+      [cam.lng.t, cam.lat.t, cam.d.t, cam.r0.t] = b.cam;
+      setZoom(...b.uz);
+      $("#pList").scrollTop = b.scroll;
+    }
   }
   if (prev !== p) stylePins();
   kick();
