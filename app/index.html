@@ -1341,6 +1341,24 @@ function hit(kind, ref = "") {
   const k = kind + ":" + ref; if (hitDone.has(k)) return; hitDone.add(k);
   sb.rpc("hit", { p_device: DEVICE, p_kind: kind, p_ref: ref }).then(() => {}, () => {});
 }
+// 어디서 들어왔나: 인스타·카톡 등은 앱 안 브라우저 이름(UA)으로, 그 밖은 이전 페이지 주소로
+const FROM_NAME = { insta: "인스타그램", threads: "스레드", kakao: "카카오톡", naver: "네이버", facebook: "페이스북", youtube: "유튜브",
+  google: "구글 검색", x: "X(트위터)", band: "밴드", app: "홈 화면 앱", direct: "주소 입력·알 수 없음", etc: "다른 사이트" };
+function visitFrom() {
+  const ua = navigator.userAgent;
+  if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "app";
+  if (/Barcelona/i.test(ua)) return "threads";
+  if (/Instagram/i.test(ua)) return "insta";
+  if (/KAKAOTALK/i.test(ua)) return "kakao";
+  if (/NAVER\(inapp/.test(ua)) return "naver";
+  if (/FBAN|FBAV|FB_IAB/.test(ua)) return "facebook";
+  if (/BAND\//.test(ua)) return "band";
+  let h = ""; try { h = new URL(document.referrer).hostname; } catch {}
+  if (!h || h === location.hostname) return "direct";
+  const m = [["instagram", "insta"], ["threads", "threads"], ["kakao", "kakao"], ["naver", "naver"], ["facebook", "facebook"], ["youtube", "youtube"],
+    ["google", "google"], ["t.co", "x"], ["twitter", "x"], ["x.com", "x"], ["band.us", "band"]].find(([k]) => h.includes(k));
+  return m ? m[1] : "etc";
+}
 let stat = null;
 async function loadStats() {
   if (!sb || !cloudUser) return;
@@ -1358,7 +1376,8 @@ function statHTML() {
     <div><b>${stat.month}</b><span>30일</span></div><div><b>${stat.total}</b><span>전체</span></div></div>
     <div class="statbars" aria-label="최근 14일 방문자">${days.map((n) => `<i class="${n ? "" : "zero"}" style="height:${Math.round((n / max) * 100)}%" title="${n}명"></i>`).join("")}</div>
     <div class="statcap"><span>14일 전</span><span>오늘</span></div>
-    <p class="statnote">최근 30일 링크로 들어옴: 가게 공유 ${stat.share}번 · 약속 ${stat.vote}번</p>
+    ${(stat.from || []).length ? `<div class="stathead">최근 30일 어디서 들어왔나</div><ol class="stattop">${stat.from.map((x) => `<li><span>${esc(FROM_NAME[x.s] || x.s)}</span><span>${x.n}명</span></li>`).join("")}</ol>` : ""}
+    <p class="statnote" style="margin-top:10px">최근 30일 링크로 들어옴: 가게 공유 ${stat.share}번 · 약속 ${stat.vote}번</p>
     ${top.length ? `<div class="stathead">최근 30일 많이 열어 본 가게</div><ol class="stattop">${top.map((x) => `<li><span>${esc(x.p.name)}</span><span>${x.n}번</span></li>`).join("")}</ol>` : ""}
     <p class="statnote" style="margin-top:10px">기기마다 하루 1명으로 세요. 나도 포함돼요.</p>`;
 }
@@ -2548,6 +2567,7 @@ syncPoll();
 loadGrades();
 loadSays();
 hit("open", /^#p=/.test(location.hash) ? "share" : /^#v=/.test(location.hash) ? "vote" : "");
+hit("from", visitFrom());
 // 투표 링크(#v=…)로 들어왔으면 투표 화면부터
 function voteFromHash() {
   const m = location.hash.match(/^#v=([0-9a-f]{32})$/);

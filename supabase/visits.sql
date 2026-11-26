@@ -6,11 +6,13 @@
 create table if not exists public.hits (
   day date not null default (now() at time zone 'Asia/Seoul')::date,
   device text not null check (char_length(device) between 8 and 40),
-  kind text not null check (kind in ('open', 'place')),   -- open: 앱을 엶 / place: 가게 상세를 엶
+  kind text not null,   -- open: 앱을 엶 / place: 가게 상세를 엶 / from: 어디서 들어왔나 (ref = insta·kakao·naver…)
   ref text not null default '' check (char_length(ref) <= 40),   -- open: ''·share(가게 링크)·vote(약속 링크) / place: 가게 id
   at timestamptz not null default now(),
   primary key (day, device, kind, ref)
 );
+alter table public.hits drop constraint if exists hits_kind_check;
+alter table public.hits add constraint hits_kind_check check (kind in ('open', 'place', 'from'));
 alter table public.hits enable row level security;
 revoke all on public.hits from anon, authenticated;
 
@@ -35,6 +37,8 @@ returns json language sql stable security definer set search_path = public as $$
     'vote',  (select count(*) from hits, k where kind = 'open' and ref = 'vote' and day > k.t - 30),
     'days',  (select coalesce(json_agg(json_build_object('d', d, 'n', n) order by d), '[]'::json)
               from (select day as d, count(distinct device) as n from hits, k where kind = 'open' and day > k.t - 14 group by day) x),
+    'from',  (select coalesce(json_agg(json_build_object('s', ref, 'n', n) order by n desc), '[]'::json)
+              from (select ref, count(distinct device) as n from hits, k where kind = 'from' and day > k.t - 30 group by ref) z),
     'top',   (select coalesce(json_agg(json_build_object('id', ref, 'n', n) order by n desc), '[]'::json)
               from (select ref, count(*) as n from hits, k where kind = 'place' and day > k.t - 30 group by ref order by n desc limit 10) y)
   );
