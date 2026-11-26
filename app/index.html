@@ -380,7 +380,11 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .pdots i { width: 6px; height: 6px; border-radius: 50%; background: var(--label3); transition: background .2s, transform .2s; }
 .pdots i.on { background: var(--label); transform: scale(1.2); }
 .pthumbs { display: flex; gap: 8px; flex-wrap: wrap; }
-.pthumb { position: relative; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: var(--fill); }
+.pthumb { position: relative; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: var(--fill);
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: transform .2s cubic-bezier(.32,.72,0,1), box-shadow .2s; }
+.pthumb[data-v] { cursor: grab; }
+.pthumb.lift { transform: scale(1.12); box-shadow: 0 6px 16px rgba(0,0,0,.35); z-index: 1; cursor: grabbing; }
+.pthumbs.sorting .pthumb:not(.lift):not(.add) { opacity: .75; }
 .pthumb img { width: 100%; height: 100%; object-fit: cover; }
 .pthumb button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 20px; }
 .pthumb.add { display: grid; place-items: center; font-size: 22px; color: var(--label2); cursor: pointer; }
@@ -1433,6 +1437,49 @@ async function deletePhoto(p, v) {
   if (res.error || !(await savePhotoList(p, photoNames(p).filter((x) => x !== v)))) return toast("사진을 지우지 못했어요");
   toast("사진을 지웠어요"); if (state.selected === p) renderDetail(p);
 }
+// 내 사진 순서 바꾸기: 폰은 꾹(0.35초) 누른 뒤 끌기, PC는 그냥 끌기. 놓으면 says.photo 순서 저장 (첫 장이 대표)
+let pdrag = null, pdragTimer = 0;
+const pthumbList = (box) => [...box.querySelectorAll(".pthumb[data-v]")];
+function pdragBegin() {
+  if (!pdrag) return;
+  pdrag.on = true; pdrag.el.classList.add("lift"); pdrag.box.classList.add("sorting");
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+document.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest && e.target.closest("#pDetail .pthumbs .pthumb[data-v]");
+  if (!el || e.target.closest("button") || (e.pointerType === "mouse" && e.button !== 0)) return;
+  pdrag = { el, box: el.parentElement, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== "mouse", on: false };
+  if (pdrag.touch) pdragTimer = setTimeout(pdragBegin, 350);
+});
+addEventListener("pointermove", (e) => {
+  if (!pdrag || e.pointerId !== pdrag.id) return;
+  const moved = Math.hypot(e.clientX - pdrag.x, e.clientY - pdrag.y);
+  if (!pdrag.on) {
+    if (pdrag.touch) { if (moved > 8) { clearTimeout(pdragTimer); pdrag = null; } return; }   // 꾹 누르기 전에 움직이면 그냥 스크롤
+    if (moved < 5) return;
+    pdragBegin();
+  }
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  const over = t && t.closest(".pthumb[data-v]");
+  if (over && over !== pdrag.el && over.parentElement === pdrag.box) {
+    const list = pthumbList(pdrag.box), a = list.indexOf(pdrag.el), b = list.indexOf(over);
+    over[a < b ? "after" : "before"](pdrag.el);
+  }
+});
+document.addEventListener("touchmove", (e) => { if (pdrag && pdrag.on) e.preventDefault(); }, { passive: false });   // 끄는 동안 화면이 스크롤되지 않게
+function pdragEnd() {
+  clearTimeout(pdragTimer);
+  if (!pdrag) return;
+  const { on, el, box } = pdrag; pdrag = null;
+  el.classList.remove("lift"); box.classList.remove("sorting");
+  const p = state.selected; if (!on || !p) return;
+  const order = pthumbList(box).map((x) => x.dataset.v);
+  if (order.join() === photoNames(p).join()) return;
+  savePhotoList(p, order).then((ok) => { toast(ok ? "사진 순서를 바꿨어요" : "순서를 저장하지 못했어요"); if (state.selected === p) renderDetail(p); });
+}
+addEventListener("pointerup", pdragEnd);
+addEventListener("pointercancel", pdragEnd);
+document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest(".pthumb.lift")) e.preventDefault(); }, true);
 // 가게 하나 공유: 링크(#p=가게)를 열면 그 가게 상세가 바로 열림
 async function sharePlace(p) {
   const url = `${location.origin}${location.pathname}#p=${encodeURIComponent(p.id)}`;
@@ -1762,7 +1809,7 @@ function renderDetail(p) {
       <div class="graderow"><span>내 등급<small>${gradeOf(p) ? "다시 누르면 지워져요" : "친구에게도 보여요"}</small></span><div class="gpick">${GRADES.map((g) => `<button class="gbtn ${gradeOf(p) === g ? "on g" + g : ""}" data-grade="${g}" aria-label="${g}등급">${g}</button>`).join("")}</div></div>
       <input class="sayin" id="sayIn" maxlength="120" placeholder="한마디 (친구에게도 보여요)" value="${esc((says[p.id] || {}).say || "")}">
       <input class="sayin" id="dishIn" maxlength="40" placeholder="꼭 시킬 메뉴 (친구에게도 보여요)" value="${esc((says[p.id] || {}).dish || "")}">
-      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 친구에게도 보여요 · 첫 장이 대표</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb"><img src="${photoSrc(p, v)}" alt="" loading="lazy"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div></div>
+      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 첫 장이 대표${photoNames(p).length > 1 ? (IS_MOBILE ? " · 꾹 눌러 끌면 순서가 바뀌어요" : " · 끌어서 순서를 바꿔요") : ""}</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb" data-v="${v}"><img src="${photoSrc(p, v)}" alt="" loading="lazy" draggable="false"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div></div>
       <textarea class="memo" id="memo" rows="1" placeholder="메모 (나만 보여요)" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>` : ""}
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
@@ -1864,7 +1911,7 @@ addEventListener("keydown", (e) => {
 });
 (() => {
   const pg = $("#pDetail"); let sx = null, sy = 0;
-  pg.addEventListener("touchstart", (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  pg.addEventListener("touchstart", (e) => { if (e.target.closest(".pgal, .pthumbs")) { sx = null; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
   pg.addEventListener("touchmove", (e) => {
     if (sx == null) return;
     const dx = e.touches[0].clientX - sx, dy = Math.abs(e.touches[0].clientY - sy);

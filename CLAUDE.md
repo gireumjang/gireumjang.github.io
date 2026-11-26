@@ -36,7 +36,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 | `supabase/votes.sql` | 약속·투표 테이블(`votes`, `vote_people`)과 함수. 테이블은 아무도 직접 못 읽고, 친구(anon)는 투표 ID를 넘기는 함수로만 그 약속 하나를 읽고 씀. SQL Editor에서 다시 실행해도 안전 |
 | `supabase/grades.sql` | 내 등급(`grades`: place_id → S·A·B·C). 누구나(anon) 읽기, 로그인한 본인만 쓰기. SQL Editor에서 다시 실행해도 안전 |
 | `supabase/says.sql` | 내 한마디(`says`: place_id → say 120자·dish 40자 '꼭 시킬 것'). 누구나 읽기, 로그인한 본인만 쓰기. 상세(친구에게만 상자로 보임, 나는 입력칸)·목록 줄(💬)에 나옴 |
-| `supabase/photos.sql` | 내 사진(가게당 최대 10장, 첫 장이 대표. 2026-11-26 5→10장). Storage 공개 버킷 `photos/{가게}/{이름}.jpg`, 이름 목록은 `says.photo`(쉼표). 올리기 전에 정사각형 자리 잡기(`cropSquare`: 끌기·두 손가락·휠·막대) → 최대 1080px JPEG. 상세 사진은 1:1. 상세 맨 위 넘겨 보기 `.pgal`(HSEL, 휠·끌기는 한 장씩) |
+| `supabase/photos.sql` | 내 사진(가게당 최대 10장, 첫 장이 대표. 2026-11-26 5→10장). Storage 공개 버킷 `photos/{가게}/{이름}.jpg`, 이름 목록은 `says.photo`(쉼표). 올리기 전에 정사각형 자리 잡기(`cropSquare`: 끌기·두 손가락·휠·막대) → 최대 1080px JPEG. 상세 사진은 1:1. 상세 맨 위 넘겨 보기 `.pgal`(HSEL, 휠·끌기는 한 장씩). 내 사진 줄에서 순서 바꾸기(폰 꾹 0.35초 후 끌기·PC 끌기, `pdrag`, 놓으면 says.photo 저장). 사진·썸네일 위에선 스와이프 뒤로가기 안 함 |
 | `supabase/schema.sql` | Supabase 테이블·RLS·권한 (`kv`: 방문 기록·메모, `sync_requests`: 폰 동기화 요청). SQL Editor에서 다시 실행해도 안전 |
 | `scripts/com.matjip.weekly.plist` | 예전 맥의 주간 자동 수집 설정. 더 안 씀 |
 | `supabase/functions/transit` | 배포 후 대중교통 중계 (dev_server의 /api/transit 과 같은 일) |
