@@ -23,8 +23,8 @@ KEY = os.environ.get("SUPABASE_SECRET", "")
 def call(method, path, body=None, prefer="return=minimal"):
     req = urllib.request.Request(f"{URL}/rest/v1/{path}", method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"apikey": KEY, "Authorization": f"Bearer {KEY}",
-                                          "Content-Type": "application/json", "Prefer": prefer})
+                                 # sb_secret_ 키는 JWT가 아니라서 Authorization 에 넣으면 거절됨 → apikey 만 (dev_server 와 같음)
+                                 headers={"apikey": KEY, "Content-Type": "application/json", "Prefer": prefer})
     with urllib.request.urlopen(req, timeout=20) as r:
         raw = r.read()
         return json.loads(raw) if raw else None
@@ -37,7 +37,7 @@ def main():
             got = call("PATCH", "sync_requests?status=eq.pending", {"status": "running"}, prefer="return=representation")
             ids = [r["id"] for r in got or []]
         except Exception as e:  # noqa: BLE001
-            print(f"요청 가져오기 실패: {type(e).__name__}", flush=True)
+            print(f"요청 가져오기 실패: {type(e).__name__} {getattr(e, 'code', '')}", flush=True)
     print(f"동기화 요청 {len(ids)}개", flush=True)
 
     p = subprocess.run([sys.executable, "-I", "-X", "utf8", str(ROOT / "scripts" / "sync.py")],
