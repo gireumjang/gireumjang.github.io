@@ -27,8 +27,9 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 | `scripts/build_dong.py` | `data/geo_raw/HangJeongDong_ver*.geojson`(가장 최신) → `app/dong/`. 지도의 시·군·구 자료가 예전 경계라 이름 대신 동 중심점 위치로 묶음 |
 | `app/food/{음식 이름}.png` | 제철 음식 그림 53개 전부 (2026-11-25 50개는 ChatGPT 그림판을 잘라 약 120px, 11-26 가자미·대게·꼬막 160px 추가 — 검은 바탕은 지워서 투명 PNG). `index.html`의 `FOOD_IMG`에 있는 이름만 그림, 나머지는 `season.js` 이모지. 그림을 넣으면 `FOOD_IMG`에 이름 추가 |
 | `app/config.js` | 배포용 설정 (`transitProxy`) |
-| `scripts/sync.py` | '지금 동기화': 저장 목록(raw) 다시 받기 → 새 가게·실패했던 가게만 수집 → 전화 보강 → 빌드 → `publish()`(app/ 바뀐 것만 커밋·push → 자동 배포) |
+| `scripts/sync.py` | '지금 동기화': (data/가 git 저장소면 먼저 pull) 저장 목록(raw) 다시 받기 → 새 가게·실패했던 가게만 수집 → 전화 보강 → 빌드 → `publish()`(app/ 바뀐 것만 커밋·push → 자동 배포) → `save_data()`(data/ 를 hanjeom-data 에 push) |
 | `scripts/collect_naver.py` | 저장 가게마다 네이버 플레이스 홈 1페이지 → `data/naver/{sid}.json` (메뉴·가격·후기 요약·키워드·별점·영업시간). 기본은 아직 안 받은 곳만, `--refresh`면 전부 |
+| `scripts/cloud_sync.py` | GitHub 서버 동기화 (2026-11-27). 폰·PC 어디서든 로그인하고 '↻ 동기화' → 앱이 `sync_requests`에 요청 + Supabase 함수 `sync`(`supabase/functions/sync`, 로그인 확인 후 `repository_dispatch`) → 비공개 저장소 **gireumjang/hanjeom-data**(= PC의 `data/` 폴더, git 저장소)의 Actions `sync.yml`이 공개 저장소를 받아 이 스크립트 실행: 기다리는 요청을 '처리 중'으로 → `sync.py` → 끝/실패. Secrets: hanjeom-data에 `GH_PAT`·`SUPABASE_SECRET`, Supabase 함수에 `GH_PAT`·`ALLOW_ORIGIN`. `data/.git`이 있으면 dev_server는 폰 요청을 안 가져감(PC 로컬 버튼은 그대로) |
 | `scripts/fill_phones.py` | 전화번호 없는 곳을 네이버 검색 결과에서 보강 (도로명+건물번호가 번호 옆에 있을 때만, 30일에 1번) |
 | `scripts/classify.py` | 유형 19종 분류 (업종 + 대표 메뉴) |
 | `scripts/build_data.py` | raw + naver + geo → `app/*.js` |
@@ -64,7 +65,7 @@ python3 scripts/dev_server.py     # http://localhost:5173  (app/ + /api/transit 
 - 네이버 대중교통(`map.naver.com/p/api/directions/pubtrans`)은 `departureTime=YYYY-MM-DDTHH:MM:SS`(한국 시간)을 받는다 (중계는 `time` 파라미터로 넘김). CORS가 없어 브라우저에서 직접 못 부른다 → 중계 필요.
 - 블로그 글에 다른 가게 전화번호가 섞인다 → 주소 일치할 때만 채택 (이름만 맞는 건 버림).
 - 제철 정규식은 오탐 주의: '메밀면에대하여'→대하, 수육→보쌈 같은 사례로 고쳐 왔다. 고칠 땐 `season.js` 정규식을 고친다 (수동 태그 기능은 만들지 않기로 결정). 새 항목을 넣으면 실제로 어느 가게·메뉴에 걸리는지 확인할 것 (하모→하모니, 도미→도미노 같은 함정).
-- 수집은 한 PC에서만 돌린다 (두 곳에서 돌면 네이버 요청이 두 배).
+- 수집은 한 곳에서만 돌린다 (두 곳에서 돌면 네이버 요청이 두 배). 2026-11-27부터 폰 요청은 GitHub 서버, PC는 로컬 버튼만. 둘 다 `data/`(hanjeom-data)를 pull/push 해서 이어 씀. GitHub 서버에서도 네이버 요청이 통과함(시험 확인)
 - `/api/sync` POST는 `X-Hanjeom: sync` 헤더가 있어야 받는다 (다른 사이트가 몰래 부르는 것 방지).
 - **행정동 경계 출처 표시 필수:** vuski/admdongkor(CC BY 4.0) + 통계청 SGIS(공공누리 1유형). 앱에서는 동이 보일 때 지도 왼쪽 아래 `.attr`에 표시. 지우지 말 것. 원본 geojson(34.6MB)은 `data/geo_raw/`에만 둔다.
 - 브라우저 창이 숨겨져 있으면 requestAnimationFrame이 거의 안 돌아 지도 애니메이션이 멈춘 것처럼 보인다 (테스트할 때 착각 주의).

@@ -1825,21 +1825,25 @@ async function syncPoll() {
   if (first) renderList(); else showSyncState();
   if (s.running) setTimeout(syncPoll, 3000);
 }
-// 로컬 서버가 없으면(배포 사이트·폰) Supabase에 요청을 남기고, 켜져 있는 PC의 dev_server.py 가 가져가 처리한다
+// 로컬 서버가 없으면(배포 사이트·폰) Supabase에 요청을 남기고 → 함수 sync 가 GitHub 서버를 깨워 처리 (scripts/cloud_sync.py)
 async function startCloudSync() {
   const { data, error } = await sb.from("sync_requests").insert({}).select("id").single();
   if (error) return toast("동기화 요청을 남기지 못했어요");
   sync.running = true; showSyncState();
-  toast("동기화를 요청했어요. PC에서 한 점 서버가 켜져 있으면 처리돼요");
-  pollCloudSync(data.id);
+  const { error: fe } = await sb.functions.invoke("sync", { method: "POST" });
+  toast(fe ? "동기화를 요청했어요. 서버 연결이 안 돼서 PC가 켜져 있을 때 처리돼요" : "네이버 저장 목록을 받아오고 있어요. 2~3분 걸려요");
+  pollCloudSync(data.id, Date.now());
 }
-async function pollCloudSync(id) {
-  const { data } = await sb.from("sync_requests").select("status").eq("id", id).single();
+async function pollCloudSync(id, t0) {
+  const { data } = await sb.from("sync_requests").select("status,summary").eq("id", id).single();
   if (data && (data.status === "done" || data.status === "failed")) {
     sync.running = false; showSyncState();
-    return toast(data.status === "done" ? "동기화 끝 · 1~2분 뒤 새로고침하면 반영돼요" : "동기화가 실패했어요. PC에서 다시 해 주세요");
+    const m = (data.summary || "").match(/새로 저장 (\d+)곳/);
+    return toast(data.status === "failed" ? "동기화가 실패했어요. 잠시 뒤 다시 해 주세요"
+      : `동기화 끝${m ? ` · 새 가게 ${m[1]}곳` : ""} · 1~2분 뒤 새로고침하면 반영돼요`);
   }
-  setTimeout(() => pollCloudSync(id), 15000);
+  if (Date.now() - t0 > 20 * 60e3) { sync.running = false; showSyncState(); return; }   // 20분 넘으면 버튼만 풀어 둠
+  setTimeout(() => pollCloudSync(id, t0), 10000);
 }
 async function startSync() {
   if (sync.running) return toast("이미 동기화하고 있어요");

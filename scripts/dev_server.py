@@ -90,6 +90,8 @@ def cloud_sync_loop():
     data/supabase.json {"url": "...", "secret": "sb_secret_..."} 가 있을 때만 돈다 (secret 키는 저장소에 올리지 않음)."""
     import time
     import urllib.request
+    if (ROOT / "data" / ".git").exists():   # 폰 요청은 이제 GitHub 서버(cloud_sync.py)가 처리 → PC는 안 가져감 (둘이 같이 돌면 네이버 요청이 두 배)
+        return print("폰 동기화 요청은 GitHub 서버가 처리 (PC 확인 꺼짐)", flush=True)
     cfg_file = ROOT / "data" / "supabase.json"
     try:
         cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
@@ -113,7 +115,7 @@ def cloud_sync_loop():
             pending = call("GET", "sync_requests?status=eq.pending&select=id&order=id")
             if pending and start_sync():
                 ids = ",".join(str(r["id"]) for r in pending)
-                call("PATCH", f"sync_requests?id=in.({ids})", {"status": "running"})
+                call("PATCH", f"sync_requests?id=in.({ids})&status=eq.pending", {"status": "running"})
                 while sync_proc.poll() is None:
                     time.sleep(5)
                 lines = SYNC_LOG.read_text(encoding="utf-8", errors="replace").splitlines()

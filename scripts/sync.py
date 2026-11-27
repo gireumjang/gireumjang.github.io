@@ -4,7 +4,10 @@
 - 목록 받기가 실패하면 예전 목록을 그대로 쓴다 (덮어쓰지 않음).
 - 네이버에서 저장을 지운 가게는 다음 빌드부터 지도에서 빠진다.
 
-실행: python3 scripts/sync.py   (앱의 동기화 버튼은 dev_server.py 가 이걸 실행한다)
+- data/ 가 비공개 저장소(gireumjang/hanjeom-data)를 받아 둔 폴더면: 시작할 때 받고(pull), 끝나면 올린다(push).
+  그래서 PC와 GitHub 서버(cloud_sync.py) 어디서 돌려도 같은 자료를 이어 쓴다.
+
+실행: python3 scripts/sync.py   (PC 동기화 버튼은 dev_server.py, 폰·배포 사이트는 GitHub Actions 의 cloud_sync.py 가 실행)
 """
 import json
 import pathlib
@@ -34,7 +37,14 @@ def sids(d):
     return {b["sid"] for b in d["bookmarkList"] if b.get("sid")}
 
 
+def data_git(*a):
+    return subprocess.run(["git", "-C", str(ROOT / "data"), *a], capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
 def main():
+    if (ROOT / "data" / ".git").exists():
+        r = data_git("pull", "--ff-only", "-q")
+        print("data: 받음" if r.returncode == 0 else f"data: 받기 실패 → 이 PC 자료로 계속 ({(r.stderr or '').strip()[:120]})", flush=True)
     if not SHARES_FILE.exists():
         sys.exit(f"{SHARES_FILE} 이 없어요 (공유 폴더 ID 설정)")
     shares = {k: v for k, v in json.loads(SHARES_FILE.read_text(encoding="utf-8")).items() if not k.startswith("_")}
@@ -57,7 +67,20 @@ def main():
         print(f"== {step}", flush=True)
         subprocess.run([sys.executable, "-I", "-X", "utf8", str(ROOT / "scripts" / step)], check=False)
     publish()
+    save_data()
     print("동기화 끝", flush=True)
+
+
+def save_data():
+    """수집 자료(data/)를 비공개 저장소에 올린다. data/ 가 저장소가 아니면 건너뜀."""
+    if not (ROOT / "data" / ".git").exists():
+        return
+    data_git("add", "-A")
+    if data_git("diff", "--cached", "--quiet").returncode == 0:
+        return print("data: 바뀐 것 없음", flush=True)
+    c = data_git("commit", "-q", "-m", f"수집 {time.strftime('%Y-%m-%d %H:%M')}")
+    p = data_git("push", "-q", "origin", "HEAD:main") if c.returncode == 0 else c
+    print("data: 올림" if p.returncode == 0 else f"data: 올리기 실패 {(p.stderr or p.stdout).strip()[:200]}", flush=True)
 
 
 def publish():
