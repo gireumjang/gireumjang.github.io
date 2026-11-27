@@ -382,7 +382,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .pthumbs { display: flex; gap: 8px; flex-wrap: wrap; }
 .pthumb { position: relative; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: var(--fill);
   -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: transform .2s cubic-bezier(.32,.72,0,1), box-shadow .2s; }
-.pthumb[data-v] { cursor: grab; }
+.pthumb[data-v] { cursor: pointer; }
 .pthumb.lift { transform: scale(1.12); box-shadow: 0 6px 16px rgba(0,0,0,.35); z-index: 1; cursor: grabbing; }
 .pthumbs.sorting .pthumb:not(.lift):not(.add) { opacity: .75; }
 .pthumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -511,6 +511,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .bthumb { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: var(--fill); padding: 0; }
 .bthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bthumb.off img { opacity: .25; }
+.bthumb.cropped::before { content: "✓"; position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--pin); color: #fff; font-size: 10px; line-height: 16px; text-align: center; z-index: 1; }
 .bthumb.off::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; font-weight: 700; color: var(--label); }
 .bsugg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .bsugg:empty { display: none; }
@@ -1461,7 +1462,7 @@ async function savePhotoList(p, list) {
   store.set("says", says); return true;
 }
 // 정사각형으로 보일 자리 잡기: 끌어서 위치, 두 손가락·휠·막대로 크기. 확인하면 1080px 정사각형 JPEG
-function cropSquare(file, label) {
+function cropSquare(file, label, noText = "이 사진 빼기") {
   return new Promise((done) => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onerror = () => { URL.revokeObjectURL(url); done(null); };
@@ -1470,7 +1471,7 @@ function cropSquare(file, label) {
       const wrap = document.createElement("div"); wrap.className = "cropwrap";
       wrap.innerHTML = `<div class="croptitle">사진 위치 잡기 ${label}<small>끌어서 옮기고, 두 손가락이나 아래 막대로 크기를 바꿔요</small></div>
         <div class="cropbox"></div><input class="cropzoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="크기">
-        <div class="cropbtns"><button class="no">이 사진 빼기</button><button class="ok">확인</button></div>`;
+        <div class="cropbtns"><button class="no">${noText}</button><button class="ok">확인</button></div>`;
       document.body.appendChild(wrap);
       const box = wrap.querySelector(".cropbox"), zoom = wrap.querySelector(".cropzoom");
       box.appendChild(img);
@@ -1517,7 +1518,7 @@ async function uploadPhotos(p, files) {
   const blobs = [];
   for (let i = 0; i < files.length; i++) {
     const b = await cropSquare(files[i], files.length > 1 ? `${i + 1}/${files.length}` : "");
-    if (b) blobs.push(await b);
+    if (b) blobs.push({ sq: await b, file: files[i] });
   }
   if (!blobs.length) return;
   const btn = $("#photoAdd"); if (btn) btn.classList.add("busy");
@@ -1526,15 +1527,25 @@ async function uploadPhotos(p, files) {
   toast(ok === blobs.length ? `사진 ${ok}장을 올렸어요` : `${blobs.length}장 중 ${ok}장만 올렸어요`);
   if (state.selected === p) renderDetail(p);
 }
-// 정사각형 JPEG 들을 Storage 에 올리고 says.photo 에 이어 붙임. 올린 장수(목록 저장 실패면 -1)
-async function uploadBlobs(p, blobs, onStep) {
+// 원본은 긴 쪽 1440px 로 줄여 photos/{가게}/{이름}_o.jpg 에 같이 둔다 → 나중에 사진을 눌러 구도를 다시 잡을 수 있음
+async function origBlob(file) {
+  const r = await loadImg(file); if (!r) return null;
+  const { img, url } = r, W = img.naturalWidth, H = img.naturalHeight, k = Math.min(1, 1440 / Math.max(W, H));
+  const c = document.createElement("canvas"); c.width = Math.round(W * k); c.height = Math.round(H * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+  return new Promise((res) => c.toBlob(res, "image/jpeg", 0.82));
+}
+const putPhoto = (p, name, blob) => sb.storage.from("photos").upload(`${p.id}/${name}.jpg`, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
+// 정사각형 JPEG(+원본)을 Storage 에 올리고 says.photo 에 이어 붙임. items: Blob 또는 {sq, file}. 올린 장수(목록 저장 실패면 -1)
+async function uploadBlobs(p, items, onStep) {
   const list = photoNames(p); let ok = 0;
-  for (let i = 0; i < blobs.length && list.length < MAX_PHOTOS; i++) {
-    if (onStep) onStep(i + 1, blobs.length);
+  for (let i = 0; i < items.length && list.length < MAX_PHOTOS; i++) {
+    if (onStep) onStep(i + 1, items.length);
     try {
-      const v = Date.now().toString(36) + i;
-      const up = await sb.storage.from("photos").upload(`${p.id}/${v}.jpg`, blobs[i], { contentType: "image/jpeg", cacheControl: "31536000" });
+      const it = items[i], sq = it instanceof Blob ? it : it.sq, v = Date.now().toString(36) + i;
+      const up = await putPhoto(p, v, sq);
       if (up.error) throw up.error;
+      if (it.file) { const o = await origBlob(it.file); if (o) await putPhoto(p, v + "_o", o); }   // 원본은 실패해도 사진은 살림
       list.push(v); ok++;
     } catch (e) {}
   }
@@ -1644,7 +1655,7 @@ async function startBulk(files) {
   }
   const nGps = me.items.filter((x) => x.lat).length;
   wrap.innerHTML = `<div class="bulkhead"><h3>📷 사진 한꺼번에 올리기</h3><button data-bclose>닫기</button></div>
-    <div class="bulkinfo">사진 ${me.items.length}장 · ${me.groups.length}묶음${nGps ? ` · 위치 있는 사진 ${nGps}장은 가까운 가게를 추천해요` : " · 사진에 위치가 없어서 가게를 직접 찾아 주세요"}. 사진을 누르면 빼요.</div>
+    <div class="bulkinfo">사진 ${me.items.length}장 · ${me.groups.length}묶음${nGps ? ` · 위치 있는 사진 ${nGps}장은 가까운 가게를 추천해요` : " · 사진에 위치가 없어서 가게를 직접 찾아 주세요"}. 사진을 누르면 구도를 잡거나 뺄 수 있어요.</div>
     <div class="bulkbody"></div><div class="bulkfoot"><button data-bgo></button></div>`;
   wrap.querySelector(".bulkbody").innerHTML = me.groups.map((_, i) => `<div class="bgroup" data-g="${i}"></div>`).join("");
   me.groups.forEach((_, i) => bulkGroup(i));
@@ -1658,7 +1669,7 @@ function bulkGroup(i) {
   const n = g.items.filter((x) => !x.off).length;
   el.classList.toggle("skip", g.skip);
   el.innerHTML = `<div class="bghead"><b>${bulkWhen(g.items[0].t)}</b><span>${n}장</span><button data-bskip>${g.skip ? "되살리기" : "건너뛰기"}</button></div>
-    <div class="bthumbs">${g.items.map((it, j) => `<button class="bthumb${it.off ? " off" : ""}" data-bt="${j}" aria-label="사진 ${j + 1} ${it.off ? "다시 넣기" : "빼기"}"><img src="${it.thumb}" alt=""></button>`).join("")}</div>
+    <div class="bthumbs">${g.items.map((it, j) => `<button class="bthumb${it.off ? " off" : ""}${it.crop && !it.off ? " cropped" : ""}" data-bt="${j}" aria-label="사진 ${j + 1} 구도 잡기"><img src="${it.thumb}" alt=""></button>`).join("")}</div>
     ${g.place ? `<div class="bpick"><span>📍 <b>${esc(g.place.name)}</b><small>${bulkArea(g.place)}${bulkHave(g.place)}</small></span><button data-bchange>바꾸기</button></div>`
       : `<div class="bsugg">${(g.sugg || []).map((x) => `<button data-bp="${x.p.id}">${esc(x.p.name)}<small>${Math.round(x.d * 1000)}m${bulkHave(x.p)}</small></button>`).join("")}</div>
       <input class="bsearch" placeholder="가게 이름이나 동네로 찾기" value="${esc(g.q)}" enterkeyhint="search"><div class="bres">${bulkResults(g.q)}</div>`}`;
@@ -1691,7 +1702,7 @@ async function bulkUpload() {
   let done = 0, ok = 0, fail = 0;
   for (const [p, its] of by) {
     const blobs = [];
-    for (const it of its) { b.textContent = `올리는 중… ${++done}/${n}`; const bl = await squareBlob(it.file, 1080); if (bl) blobs.push(bl); else fail++; }
+    for (const it of its) { b.textContent = `올리는 중… ${++done}/${n}`; const bl = it.crop || (await squareBlob(it.file, 1080)); if (bl) blobs.push({ sq: bl, file: it.file }); else fail++; }
     const r = await uploadBlobs(p, blobs);
     if (r < 0) fail += blobs.length; else { ok += r; fail += blobs.length - r; }
   }
@@ -1707,7 +1718,16 @@ document.addEventListener("click", (e) => {
   const gEl = t.closest(".bgroup"); if (!gEl || bulk.busy) return;
   const i = +gEl.dataset.g, g = bulk.groups[i];
   const th = t.closest("[data-bt]"), pb = t.closest("[data-bp]");
-  if (th) { const it = g.items[+th.dataset.bt]; it.off = !it.off; }
+  if (th) {
+    const it = g.items[+th.dataset.bt];
+    cropSquare(it.file, "", "이 사진 빼기").then(async (b) => {
+      if (!bulk || bulk.groups[i] !== g) return;
+      const sq = b && (await b);
+      if (sq) { it.crop = sq; it.off = false; if (it.thumb) URL.revokeObjectURL(it.thumb); it.thumb = URL.createObjectURL(sq); } else it.off = true;
+      bulkGroup(i); bulkFoot();
+    });
+    return;
+  }
   else if (t.closest("[data-bskip]")) g.skip = !g.skip;
   else if (t.closest("[data-bchange]")) g.place = null;
   else if (pb) { g.place = places.find((p) => p.id === pb.dataset.bp) || null; g.q = ""; }
@@ -1720,14 +1740,36 @@ document.addEventListener("input", (e) => {
   const gEl = e.target.closest(".bgroup"), g = bulk.groups[+gEl.dataset.g];
   g.q = e.target.value; gEl.querySelector(".bres").innerHTML = bulkResults(g.q);
 });
+async function recropPhoto(p, v) {
+  let src = null, hasOrig = false;
+  for (const name of [v + "_o", v]) {
+    try { const r = await fetch(photoSrc(p, name), { cache: "no-store" }); if (r.ok) { src = await r.blob(); hasOrig = name !== v; break; } } catch {}
+  }
+  if (!src) return toast("사진을 불러오지 못했어요");
+  const b = await cropSquare(new File([src], "photo.jpg", { type: "image/jpeg" }), "", "취소");
+  if (!b) return;
+  const sq = await b; if (!sq) return;
+  toast("사진 바꾸는 중…");
+  // 같은 이름으로 덮으면 브라우저·CDN 캐시에 옛 사진이 남아서, 새 이름으로 올리고 같은 자리에 끼움
+  const nv = Date.now().toString(36);
+  try {
+    const up = await putPhoto(p, nv, sq); if (up.error) throw up.error;
+    if (hasOrig) await putPhoto(p, nv + "_o", src);
+  } catch { return toast("사진을 바꾸지 못했어요"); }
+  const list = photoNames(p).map((x) => (x === v ? nv : x));
+  if (!(await savePhotoList(p, list))) return toast("사진을 바꾸지 못했어요");
+  sb.storage.from("photos").remove([`${p.id}/${v}.jpg`, `${p.id}/${v}_o.jpg`]).then(() => {}, () => {});
+  toast(hasOrig ? "구도를 바꿨어요" : "구도를 바꿨어요 (예전에 올린 사진은 지금 보이는 범위 안에서만 옮길 수 있어요)");
+  if (state.selected === p) renderDetail(p);
+}
 async function deletePhoto(p, v) {
   if (!confirm("이 사진을 지울까요? 되돌릴 수 없어요")) return;
-  const res = await sb.storage.from("photos").remove([`${p.id}/${v}.jpg`]);
+  const res = await sb.storage.from("photos").remove([`${p.id}/${v}.jpg`, `${p.id}/${v}_o.jpg`]);
   if (res.error || !(await savePhotoList(p, photoNames(p).filter((x) => x !== v)))) return toast("사진을 지우지 못했어요");
   toast("사진을 지웠어요"); if (state.selected === p) renderDetail(p);
 }
 // 내 사진 순서 바꾸기: 폰은 꾹(0.35초) 누른 뒤 끌기, PC는 그냥 끌기. 놓으면 says.photo 순서 저장 (첫 장이 대표)
-let pdrag = null, pdragTimer = 0;
+let pdrag = null, pdragTimer = 0, pdragJust = false;
 const pthumbList = (box) => [...box.querySelectorAll(".pthumb[data-v]")];
 function pdragBegin() {
   if (!pdrag) return;
@@ -1762,6 +1804,7 @@ function pdragEnd() {
   const { on, el, box } = pdrag; pdrag = null;
   el.classList.remove("lift"); box.classList.remove("sorting");
   const p = state.selected; if (!on || !p) return;
+  pdragJust = true; setTimeout(() => (pdragJust = false), 0);   // 끌고 놓은 건 누른 걸로 치지 않음
   const order = pthumbList(box).map((x) => x.dataset.v);
   if (order.join() === photoNames(p).join()) return;
   savePhotoList(p, order).then((ok) => { toast(ok ? "사진 순서를 바꿨어요" : "순서를 저장하지 못했어요"); if (state.selected === p) renderDetail(p); });
@@ -1769,6 +1812,11 @@ function pdragEnd() {
 addEventListener("pointerup", pdragEnd);
 addEventListener("pointercancel", pdragEnd);
 document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest(".pthumb.lift")) e.preventDefault(); }, true);
+document.addEventListener("click", (e) => {
+  const th = e.target.closest && e.target.closest("#pDetail .pthumbs .pthumb[data-v]");
+  if (!th || e.target.closest("button") || pdragJust || !state.selected || !cloudUser) return;
+  recropPhoto(state.selected, th.dataset.v);
+});
 // 가게 하나 공유: 링크(#p=가게)를 열면 그 가게 상세가 바로 열림
 async function sharePlace(p) {
   const url = `${location.origin}${location.pathname}#p=${encodeURIComponent(p.id)}`;
@@ -2105,7 +2153,7 @@ function renderDetail(p) {
       <div class="graderow"><span>내 등급<small>${gradeOf(p) ? "다시 누르면 지워져요" : "친구에게도 보여요"}</small></span><div class="gpick">${GRADES.map((g) => `<button class="gbtn ${gradeOf(p) === g ? "on g" + g : ""}" data-grade="${g}" aria-label="${g}등급">${g}</button>`).join("")}</div></div>
       <input class="sayin" id="sayIn" maxlength="120" placeholder="한마디 (친구에게도 보여요)" value="${esc((says[p.id] || {}).say || "")}">
       <input class="sayin" id="dishIn" maxlength="40" placeholder="꼭 시킬 메뉴 (친구에게도 보여요)" value="${esc((says[p.id] || {}).dish || "")}">
-      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 첫 장이 대표${photoNames(p).length > 1 ? (IS_MOBILE ? " · 꾹 눌러 끌면 순서가 바뀌어요" : " · 끌어서 순서를 바꿔요") : ""}</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb" data-v="${v}"><img src="${photoSrc(p, v)}" alt="" loading="lazy" draggable="false"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div></div>
+      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 첫 장이 대표${photoNames(p).length ? " · 누르면 구도 잡기" : ""}${photoNames(p).length > 1 ? (IS_MOBILE ? " · 꾹 눌러 끌면 순서 바꾸기" : " · 끌면 순서 바꾸기") : ""}</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb" data-v="${v}"><img src="${photoSrc(p, v)}" alt="" loading="lazy" draggable="false"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div></div>
       <textarea class="memo" id="memo" rows="1" placeholder="메모 (나만 보여요)" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>` : ""}
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
