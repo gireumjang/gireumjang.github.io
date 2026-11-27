@@ -492,6 +492,40 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .stepper button { width: 38px; height: 38px; border-radius: 10px; background: var(--fill); color: var(--pin); font-size: 22px; font-weight: 600; }
 .stepper b { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
 .vcta { background: rgba(255,149,0,.13); }
+.bcta { background: rgba(0,122,255,.1); }
+/* 사진 먼저 고르고 가게 정하기 (로그인한 나만) */
+.bulkwrap { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; flex-direction: column; }
+.bulkwrap > * { width: 100%; max-width: 720px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.bulkhead { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 10px; border-bottom: 0.5px solid var(--sep); }
+.bulkhead h3 { margin: 0; font-size: 19px; flex: 1; }
+.bulkhead button { height: 34px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-weight: 600; }
+.bulkinfo { padding: 10px 16px 0; font-size: 13px; color: var(--label2); }
+.bulkbody { flex: 1; overflow-y: auto; padding: 8px 16px 24px; -webkit-overflow-scrolling: touch; }
+.bgroup { background: var(--cell); border-radius: 14px; padding: 12px; margin-top: 12px; }
+.bgroup.skip { opacity: .45; }
+.bgroup.skip .bthumbs, .bgroup.skip .bsugg, .bgroup.skip .bsearch, .bgroup.skip .bres, .bgroup.skip .bpick { display: none; }
+.bghead { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.bghead b { flex: 1; } .bghead span { color: var(--label2); }
+.bghead button { height: 28px; padding: 0 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; color: var(--label2); }
+.bthumbs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.bthumb { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: var(--fill); padding: 0; }
+.bthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bthumb.off img { opacity: .25; }
+.bthumb.off::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; font-weight: 700; color: var(--label); }
+.bsugg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.bsugg:empty { display: none; }
+.bsugg button, .bres button { text-align: left; padding: 8px 12px; border-radius: 10px; background: var(--fill); font-size: 14px; font-weight: 600; }
+.bsugg button small, .bres button small, .bpick small { font-weight: 400; color: var(--label2); font-size: 12px; margin-left: 4px; }
+.bsearch { width: 100%; height: 40px; border-radius: 10px; background: var(--fill); padding: 0 12px; font-size: 16px; outline: none; }
+.bres { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.bres:empty { display: none; }
+.bpick { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--tier2-soft); font-size: 15px; }
+.bpick > span { flex: 1; min-width: 0; }
+.bpick button { flex: none; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--cell); font-size: 13px; font-weight: 600; color: var(--pin); }
+.bulkfoot { padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px); border-top: 0.5px solid var(--sep); background: var(--bg); }
+.bulkfoot button { width: 100%; height: 50px; border-radius: 12px; background: var(--pin); color: #fff; font-size: 17px; font-weight: 600; }
+.bulkfoot button:disabled { background: var(--fill); color: var(--label3); }
+.bulkload { flex: 1; display: grid; place-items: center; font-size: 15px; color: var(--label2); text-align: center; padding: 20px; }
 .vwanthint { font-size: 13px; color: var(--label2); min-height: 18px; margin: 6px 4px 0; }
 .vwanthint.none { color: var(--season); }
 /* 약속 날짜·시간: 아이폰 캘린더처럼 눌러서 고르는 칩 */
@@ -1486,23 +1520,206 @@ async function uploadPhotos(p, files) {
     if (b) blobs.push(await b);
   }
   if (!blobs.length) return;
-  files = blobs;
   const btn = $("#photoAdd"); if (btn) btn.classList.add("busy");
-  let ok = 0;
-  for (let i = 0; i < files.length; i++) {
-    toast(`사진 올리는 중… ${i + 1}/${files.length}`);
+  const ok = await uploadBlobs(p, blobs, (i, n) => toast(`사진 올리는 중… ${i}/${n}`));
+  if (ok < 0) return toast("사진을 저장하지 못했어요");
+  toast(ok === blobs.length ? `사진 ${ok}장을 올렸어요` : `${blobs.length}장 중 ${ok}장만 올렸어요`);
+  if (state.selected === p) renderDetail(p);
+}
+// 정사각형 JPEG 들을 Storage 에 올리고 says.photo 에 이어 붙임. 올린 장수(목록 저장 실패면 -1)
+async function uploadBlobs(p, blobs, onStep) {
+  const list = photoNames(p); let ok = 0;
+  for (let i = 0; i < blobs.length && list.length < MAX_PHOTOS; i++) {
+    if (onStep) onStep(i + 1, blobs.length);
     try {
-      const blob = files[i]; if (!blob) throw 0;
       const v = Date.now().toString(36) + i;
-      const up = await sb.storage.from("photos").upload(`${p.id}/${v}.jpg`, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
+      const up = await sb.storage.from("photos").upload(`${p.id}/${v}.jpg`, blobs[i], { contentType: "image/jpeg", cacheControl: "31536000" });
       if (up.error) throw up.error;
       list.push(v); ok++;
     } catch (e) {}
   }
-  if (ok && !(await savePhotoList(p, list))) return toast("사진을 저장하지 못했어요");
-  toast(ok === files.length ? `사진 ${ok}장을 올렸어요` : `${files.length}장 중 ${ok}장만 올렸어요`);
-  if (state.selected === p) renderDetail(p);
+  if (ok && !(await savePhotoList(p, list))) return -1;
+  return ok;
 }
+
+// ---------- 사진 먼저 고르고 가게는 나중에 (로그인한 나만) ----------
+// 사진의 찍은 시간·위치(EXIF)를 읽어 같은 때·같은 곳끼리 묶고, 위치가 있으면 가까운 저장 가게를 추천. 없으면 검색으로 고름.
+// 사진은 가운데 정사각형으로 자동 자르기 (나중에 가게 상세에서 지우고 다시 올릴 수 있음). 읽기·자르기는 전부 이 기기 안에서.
+const BULK_MAX = 300;
+async function readExif(file) {
+  try {
+    const v = new DataView(await file.slice(0, 262144).arrayBuffer());
+    if (v.getUint16(0) !== 0xffd8) return {};
+    let o = 2;
+    while (o + 10 < v.byteLength) {
+      const mk = v.getUint16(o), len = v.getUint16(o + 2);
+      if (mk === 0xffe1 && v.getUint32(o + 4) === 0x45786966) return exifTiff(v, o + 10);
+      if ((mk & 0xff00) !== 0xff00 || mk === 0xffda) break;
+      o += 2 + len;
+    }
+  } catch {}
+  return {};
+}
+function exifTiff(v, t) {
+  const le = v.getUint16(t) === 0x4949;
+  const u16 = (o) => v.getUint16(t + o, le), u32 = (o) => v.getUint32(t + o, le);
+  const ifd = (off) => { const n = u16(off), m = {}; for (let i = 0; i < n; i++) { const e = off + 2 + i * 12; m[u16(e)] = { count: u32(e + 4), val: e + 8 }; } return m; };
+  const rat = (off) => u32(off) / (u32(off + 4) || 1);
+  const ascii = (en) => { const off = en.count > 4 ? u32(en.val) : en.val; let r = ""; for (let i = 0; i < en.count - 1; i++) r += String.fromCharCode(v.getUint8(t + off + i)); return r; };
+  const out = {}, i0 = ifd(u32(4));
+  try { if (i0[0x8769]) { const ex = ifd(u32(i0[0x8769].val)), d = ex[0x9003] || ex[0x9004]; if (d) out.date = ascii(d); } } catch {}
+  try { if (!out.date && i0[0x0132]) out.date = ascii(i0[0x0132]); } catch {}
+  try {
+    if (i0[0x8825]) {
+      const g = ifd(u32(i0[0x8825].val)), dms = (en) => { const off = u32(en.val); return rat(off) + rat(off + 8) / 60 + rat(off + 16) / 3600; };
+      if (g[2] && g[4]) {
+        let lat = dms(g[2]), lng = dms(g[4]);
+        if (g[1] && v.getUint8(t + g[1].val) === 83) lat = -lat;   // 'S'
+        if (g[3] && v.getUint8(t + g[3].val) === 87) lng = -lng;   // 'W'
+        if (lat && lng) { out.lat = lat; out.lng = lng; }
+      }
+    }
+  } catch {}
+  return out;
+}
+const exifTime = (d) => { const m = d && d.match(/^(\d{4}):(\d\d):(\d\d)[ T](\d\d):(\d\d)/); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime() : 0; };
+function loadImg(file) {
+  return new Promise((done) => { const url = URL.createObjectURL(file), img = new Image(); img.onload = () => done({ img, url }); img.onerror = () => { URL.revokeObjectURL(url); done(null); }; img.src = url; });
+}
+async function squareBlob(file, size) {   // 가운데 정사각형 (size 이하)
+  const r = await loadImg(file); if (!r) return null;
+  const { img, url } = r, W = img.naturalWidth, H = img.naturalHeight, sw = Math.min(W, H), O = Math.min(size, sw);
+  const c = document.createElement("canvas"); c.width = c.height = O;
+  c.getContext("2d").drawImage(img, (W - sw) / 2, (H - sw) / 2, sw, sw, 0, 0, O, O);
+  URL.revokeObjectURL(url);
+  return new Promise((res) => c.toBlob(res, "image/jpeg", size > 200 ? 0.85 : 0.7));
+}
+let bulk = null;
+function openBulk() {
+  if (!cloudUser) return openAuth();
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.multiple = true; inp.style.display = "none";
+  inp.onchange = () => { const f = [...inp.files]; inp.remove(); if (f.length) startBulk(f); };
+  document.body.appendChild(inp); inp.click();
+}
+function bulkClose() {
+  if (!bulk) return;
+  if (bulk.busy) return toast("올리는 중이에요. 잠시만요");
+  for (const it of bulk.items) if (it.thumb) URL.revokeObjectURL(it.thumb);
+  bulk.wrap.remove(); bulk = null; renderList();
+}
+async function startBulk(files) {
+  if (bulk) bulkClose();
+  const over = files.length > BULK_MAX; files = files.slice(0, BULK_MAX);
+  const wrap = document.createElement("div"); wrap.className = "bulkwrap";
+  wrap.innerHTML = `<div class="bulkhead"><h3>📷 사진 한꺼번에 올리기</h3><button data-bclose>닫기</button></div><div class="bulkload">사진 읽는 중… 0/${files.length}</div>`;
+  document.body.appendChild(wrap);
+  bulk = { wrap, items: [], groups: [], busy: false };
+  const me = bulk;
+  for (let i = 0; i < files.length; i++) {
+    if (bulk !== me) return;   // 도중에 닫음
+    const f = files[i], ex = await readExif(f), thumb = await squareBlob(f, 160);
+    if (thumb) me.items.push({ file: f, t: exifTime(ex.date) || f.lastModified || 0, lat: ex.lat, lng: ex.lng, thumb: URL.createObjectURL(thumb), off: false });
+    const ld = wrap.querySelector(".bulkload"); if (ld) ld.textContent = `사진 읽는 중… ${i + 1}/${files.length}`;
+  }
+  if (bulk !== me) return;
+  if (!me.items.length) { toast("읽을 수 있는 사진이 없어요"); return bulkClose(); }
+  if (over) toast(`한 번에 ${BULK_MAX}장까지예요. 앞의 ${BULK_MAX}장만 읽었어요`);
+  // 같은 때·같은 곳끼리 묶기: 시간 순으로, 1시간 반 넘게 벌어지거나 300m 넘게 떨어지면 새 묶음
+  const its = me.items.slice().sort((a, b) => a.t - b.t);
+  let g = null;
+  for (const it of its) {
+    const last = g && g.items[g.items.length - 1], lastGps = g && [...g.items].reverse().find((x) => x.lat);
+    const far = lastGps && it.lat && km(lastGps, it) > 0.3;
+    if (!g || it.t - last.t > 90 * 60e3 || far) me.groups.push((g = { items: [], place: null, skip: false, q: "" }));
+    g.items.push(it);
+  }
+  for (const gr of me.groups) {
+    const gps = gr.items.filter((x) => x.lat);
+    if (gps.length) {
+      const c = { lat: gps.reduce((a, x) => a + x.lat, 0) / gps.length, lng: gps.reduce((a, x) => a + x.lng, 0) / gps.length };
+      gr.sugg = places.map((p) => ({ p, d: km(c, p) })).filter((x) => x.d < 0.3).sort((a, b) => a.d - b.d).slice(0, 4);
+      if (gr.sugg[0] && gr.sugg[0].d < 0.07) gr.place = gr.sugg[0].p;   // 70m 안이면 미리 골라 둠
+    } else gr.sugg = [];
+  }
+  const nGps = me.items.filter((x) => x.lat).length;
+  wrap.innerHTML = `<div class="bulkhead"><h3>📷 사진 한꺼번에 올리기</h3><button data-bclose>닫기</button></div>
+    <div class="bulkinfo">사진 ${me.items.length}장 · ${me.groups.length}묶음${nGps ? ` · 위치 있는 사진 ${nGps}장은 가까운 가게를 추천해요` : " · 사진에 위치가 없어서 가게를 직접 찾아 주세요"}. 사진을 누르면 빼요.</div>
+    <div class="bulkbody"></div><div class="bulkfoot"><button data-bgo></button></div>`;
+  wrap.querySelector(".bulkbody").innerHTML = me.groups.map((_, i) => `<div class="bgroup" data-g="${i}"></div>`).join("");
+  me.groups.forEach((_, i) => bulkGroup(i));
+  bulkFoot();
+}
+const bulkWhen = (t) => { if (!t) return "날짜 모름"; const d = new Date(t), h = d.getHours(); return `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + "년 " : ""}${d.getMonth() + 1}월 ${d.getDate()}일 ${h < 12 ? "오전" : "오후"} ${h % 12 || 12}시`; };
+const bulkArea = (p) => esc((p.dong ? dongNames(p.dong)[0] : "") || (p.addr || "").split(" ").slice(1, 3).join(" "));
+const bulkHave = (p) => { const n = photoNames(p).length; return n ? ` · 사진 ${n}장` : ""; };
+function bulkGroup(i) {
+  const g = bulk.groups[i], el = bulk.wrap.querySelector(`.bgroup[data-g="${i}"]`); if (!el) return;
+  const n = g.items.filter((x) => !x.off).length;
+  el.classList.toggle("skip", g.skip);
+  el.innerHTML = `<div class="bghead"><b>${bulkWhen(g.items[0].t)}</b><span>${n}장</span><button data-bskip>${g.skip ? "되살리기" : "건너뛰기"}</button></div>
+    <div class="bthumbs">${g.items.map((it, j) => `<button class="bthumb${it.off ? " off" : ""}" data-bt="${j}" aria-label="사진 ${j + 1} ${it.off ? "다시 넣기" : "빼기"}"><img src="${it.thumb}" alt=""></button>`).join("")}</div>
+    ${g.place ? `<div class="bpick"><span>📍 <b>${esc(g.place.name)}</b><small>${bulkArea(g.place)}${bulkHave(g.place)}</small></span><button data-bchange>바꾸기</button></div>`
+      : `<div class="bsugg">${(g.sugg || []).map((x) => `<button data-bp="${x.p.id}">${esc(x.p.name)}<small>${Math.round(x.d * 1000)}m${bulkHave(x.p)}</small></button>`).join("")}</div>
+      <input class="bsearch" placeholder="가게 이름이나 동네로 찾기" value="${esc(g.q)}" enterkeyhint="search"><div class="bres">${bulkResults(g.q)}</div>`}`;
+}
+function bulkResults(q) {
+  const ws = String(q || "").toLowerCase().split(/\s+/).filter(Boolean); if (!ws.length) return "";
+  const hits = places.filter((p) => ws.every((w) => p.hay.includes(w)));
+  hits.sort((a, b) => (b.name.toLowerCase().includes(ws[0]) ? 1 : 0) - (a.name.toLowerCase().includes(ws[0]) ? 1 : 0));
+  return hits.slice(0, 6).map((p) => `<button data-bp="${p.id}">${esc(p.name)}<small>${bulkArea(p)}${bulkHave(p)}</small></button>`).join("") || `<small style="color:var(--label2);padding:4px">맞는 가게가 없어요</small>`;
+}
+function bulkPlan() {   // 가게별로 올릴 사진 (가게당 남은 자리만큼)
+  const by = new Map();
+  for (const g of bulk.groups) {
+    if (g.skip || !g.place) continue;
+    const a = by.get(g.place) || []; a.push(...g.items.filter((x) => !x.off)); by.set(g.place, a);
+  }
+  let n = 0, cut = 0;
+  for (const [p, a] of by) { const room = Math.max(0, MAX_PHOTOS - photoNames(p).length); if (a.length > room) { cut += a.length - room; a.length = room; } n += a.length; if (!a.length) by.delete(p); }
+  return { by, n, cut };
+}
+function bulkFoot() {
+  const b = bulk.wrap.querySelector("[data-bgo]"); if (!b) return;
+  const { by, n, cut } = bulkPlan(), left = bulk.groups.filter((g) => !g.skip && !g.place).length;
+  b.disabled = !n || bulk.busy;
+  b.textContent = n ? `${by.size}곳 · ${n}장 올리기${cut ? ` (10장 넘는 ${cut}장 빼고)` : ""}` : left ? "가게를 골라 주세요" : "올릴 사진이 없어요";
+}
+async function bulkUpload() {
+  const { by, n } = bulkPlan(); if (!n) return;
+  bulk.busy = true; const b = bulk.wrap.querySelector("[data-bgo]"); b.disabled = true;
+  let done = 0, ok = 0, fail = 0;
+  for (const [p, its] of by) {
+    const blobs = [];
+    for (const it of its) { b.textContent = `올리는 중… ${++done}/${n}`; const bl = await squareBlob(it.file, 1080); if (bl) blobs.push(bl); else fail++; }
+    const r = await uploadBlobs(p, blobs);
+    if (r < 0) fail += blobs.length; else { ok += r; fail += blobs.length - r; }
+  }
+  bulk.busy = false;
+  toast(fail ? `${ok}장 올렸어요 · ${fail}장은 실패했어요` : `${by.size}곳에 사진 ${ok}장을 올렸어요`);
+  bulkClose(); refresh();
+}
+document.addEventListener("click", (e) => {
+  if (!bulk || !e.target.closest || !e.target.closest(".bulkwrap")) return;
+  const t = e.target;
+  if (t.closest("[data-bclose]")) return bulkClose();
+  if (t.closest("[data-bgo]")) return bulkUpload();
+  const gEl = t.closest(".bgroup"); if (!gEl || bulk.busy) return;
+  const i = +gEl.dataset.g, g = bulk.groups[i];
+  const th = t.closest("[data-bt]"), pb = t.closest("[data-bp]");
+  if (th) { const it = g.items[+th.dataset.bt]; it.off = !it.off; }
+  else if (t.closest("[data-bskip]")) g.skip = !g.skip;
+  else if (t.closest("[data-bchange]")) g.place = null;
+  else if (pb) { g.place = places.find((p) => p.id === pb.dataset.bp) || null; g.q = ""; }
+  else return;
+  bulkGroup(i); bulkFoot();
+  if (t.closest("[data-bchange]")) { const s2 = gEl.querySelector(".bsearch"); if (s2 && !IS_MOBILE) s2.focus(); }
+});
+document.addEventListener("input", (e) => {
+  if (!bulk || !e.target.classList || !e.target.classList.contains("bsearch")) return;
+  const gEl = e.target.closest(".bgroup"), g = bulk.groups[+gEl.dataset.g];
+  g.q = e.target.value; gEl.querySelector(".bres").innerHTML = bulkResults(g.q);
+});
 async function deletePhoto(p, v) {
   if (!confirm("이 사진을 지울까요? 되돌릴 수 없어요")) return;
   const res = await sb.storage.from("photos").remove([`${p.id}/${v}.jpg`]);
@@ -1791,6 +2008,7 @@ function renderList() {
       h += `<button class="nearcta" id="nearCta"><span>📍</span><div><b>내 주변 지금 갈 만한 곳</b><small>현재 위치로 가까운 ${state.month}월 제철 맛집을 보여줘요</small></div><em>›</em></button>`;
     }
     if (cloudUser) h += `<button class="nearcta vcta" id="voteCta"><span>🍻</span><div><b>약속 잡기</b><small>친구들 출발지를 모아 모두 가기 편한 3곳에 투표해요</small></div><em>›</em></button>`;
+    if (cloudUser) h += `<button class="nearcta bcta" id="bulkCta"><span>📷</span><div><b>사진 한꺼번에 올리기</b><small>앨범에서 사진을 먼저 고르고, 가게는 나중에 정해요</small></div><em>›</em></button>`;
   }
   if (!state.q && foods.some((x) => x.n)) {
     h += `<div class="ghead">🔥 ${state.month}월 제철 음식 · 눌러서 가게 보기</div><div class="foodstrip">${foods.filter((x) => x.n).map(foodCard).join("")}</div>`;
@@ -1862,6 +2080,7 @@ $("#pList").addEventListener("click", (e) => {
   if (e.target.id === "more") { listLimit += 100; renderList(); return; }
   if (e.target.closest("#nearCta")) return useGps();
   if (e.target.closest("#voteCta")) return openVoteNew();
+  if (e.target.closest("#bulkCta")) return openBulk();
   const fd = e.target.closest("[data-food]"); if (fd) return setFood(state.food === fd.dataset.food ? null : fd.dataset.food);
   if (e.target.id === "foodBack") { if (history.state && history.state.food) history.back(); else { state.food = null; refresh(); } return; }
   if (e.target.closest("[data-season-all]")) { state.season = true; refresh(); $("#pList").scrollTop = 0; return; }
