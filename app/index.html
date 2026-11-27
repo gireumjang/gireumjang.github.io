@@ -389,6 +389,7 @@ mark { background: rgba(255,204,0,.35); color: inherit; border-radius: 3px; padd
 .pthumb button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 20px; }
 .pthumb.add { display: grid; place-items: center; font-size: 22px; color: var(--label2); cursor: pointer; }
 .pthumb.add.busy { opacity: .5; pointer-events: none; }
+.pfind { margin-top: 10px; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--fill); color: var(--pin); font-size: 14px; font-weight: 600; }
 .photohead { font-size: 13px; color: var(--label2); margin-bottom: 6px; }
 .photorow { display: block; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: .5px solid var(--sep); }
 .pbtn { height: 34px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-size: 14px; font-weight: 600; color: var(--label);
@@ -1606,11 +1607,11 @@ async function squareBlob(file, size) {   // 가운데 정사각형 (size 이하
   return new Promise((res) => c.toBlob(res, "image/jpeg", size > 200 ? 0.85 : 0.7));
 }
 let bulk = null;
-function openBulk() {
+function openBulk(only) {   // only: 이 가게 사진만 찾기 (가게 화면 '앨범에서 찾기')
   if (!cloudUser) return openAuth();
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = "image/*"; inp.multiple = true; inp.style.display = "none";
-  inp.onchange = () => { const f = [...inp.files]; inp.remove(); if (f.length) startBulk(f); };
+  inp.onchange = () => { const f = [...inp.files]; inp.remove(); if (f.length) startBulk(f, only); };
   document.body.appendChild(inp); inp.click();
 }
 function bulkClose() {
@@ -1619,47 +1620,81 @@ function bulkClose() {
   for (const it of bulk.items) if (it.thumb) URL.revokeObjectURL(it.thumb);
   bulk.wrap.remove(); bulk = null; renderList();
 }
-async function startBulk(files) {
+async function startBulk(files, only) {
   if (bulk) bulkClose();
   const over = files.length > BULK_MAX; files = files.slice(0, BULK_MAX);
+  const title = only ? `📍 ${esc(only.name)} 사진 찾기` : "📷 사진 한꺼번에 올리기";
   const wrap = document.createElement("div"); wrap.className = "bulkwrap";
-  wrap.innerHTML = `<div class="bulkhead"><h3>📷 사진 한꺼번에 올리기</h3><button data-bclose>닫기</button></div><div class="bulkload">사진 읽는 중… 0/${files.length}</div>`;
+  wrap.innerHTML = `<div class="bulkhead"><h3>${title}</h3><button data-bclose>닫기</button></div><div class="bulkload">사진 읽는 중… 0/${files.length}</div>`;
   document.body.appendChild(wrap);
-  bulk = { wrap, items: [], groups: [], busy: false };
-  const me = bulk;
+  bulk = { wrap, items: [], groups: [], busy: false, only };
+  const me = bulk, say = (t) => { const ld = wrap.querySelector(".bulkload"); if (ld) ld.textContent = t; };
+  // 1) 찍은 시간·위치부터 (가볍다) → 2) 남길 사진만 작은 그림 만들기
+  const metas = [];
   for (let i = 0; i < files.length; i++) {
     if (bulk !== me) return;   // 도중에 닫음
-    const f = files[i], ex = await readExif(f), thumb = await squareBlob(f, 160);
-    if (thumb) me.items.push({ file: f, t: exifTime(ex.date) || f.lastModified || 0, lat: ex.lat, lng: ex.lng, thumb: URL.createObjectURL(thumb), off: false });
-    const ld = wrap.querySelector(".bulkload"); if (ld) ld.textContent = `사진 읽는 중… ${i + 1}/${files.length}`;
+    const f = files[i], ex = await readExif(f);
+    metas.push({ file: f, t: exifTime(ex.date) || f.lastModified || 0, lat: ex.lat, lng: ex.lng, off: false });
+    if (i % 5 === 4 || i === files.length - 1) say(`사진 읽는 중… ${i + 1}/${files.length}`);
+  }
+  const keep = only ? metas.filter((m) => m.lat && km(m, only) < 0.15) : metas;
+  if (only && !keep.length) {
+    const nGps = metas.filter((m) => m.lat).length;
+    toast(nGps ? `고른 ${metas.length}장 중에 이 가게 근처에서 찍은 사진이 없어요` : "고른 사진에 위치 정보가 없어요. 아이폰이 위치를 지웠을 수 있어요");
+    return bulkClose();
+  }
+  for (let i = 0; i < keep.length; i++) {
+    if (bulk !== me) return;
+    const thumb = await squareBlob(keep[i].file, 160);
+    if (thumb) me.items.push({ ...keep[i], thumb: URL.createObjectURL(thumb) });
+    if (i % 5 === 4 || i === keep.length - 1) say(`작은 그림 만드는 중… ${i + 1}/${keep.length}`);
   }
   if (bulk !== me) return;
   if (!me.items.length) { toast("읽을 수 있는 사진이 없어요"); return bulkClose(); }
   if (over) toast(`한 번에 ${BULK_MAX}장까지예요. 앞의 ${BULK_MAX}장만 읽었어요`);
-  // 같은 때·같은 곳끼리 묶기: 시간 순으로, 1시간 반 넘게 벌어지거나 300m 넘게 떨어지면 새 묶음
-  const its = me.items.slice().sort((a, b) => a.t - b.t);
-  let g = null;
-  for (const it of its) {
-    const last = g && g.items[g.items.length - 1], lastGps = g && [...g.items].reverse().find((x) => x.lat);
-    const far = lastGps && it.lat && km(lastGps, it) > 0.3;
-    if (!g || it.t - last.t > 90 * 60e3 || far) me.groups.push((g = { items: [], place: null, skip: false, q: "" }));
-    g.items.push(it);
+  const near = (c, r) => places.map((p) => ({ p, d: km(c, p) })).filter((x) => x.d < r).sort((a, b) => a.d - b.d);
+  const center = (its) => { const g = its.filter((x) => x.lat); return g.length ? { lat: g.reduce((a, x) => a + x.lat, 0) / g.length, lng: g.reduce((a, x) => a + x.lng, 0) / g.length } : null; };
+  const newest = (a, b) => b.t - a.t;
+  if (only) {
+    me.groups.push({ items: me.items.slice().sort(newest), place: only, byPlace: true, skip: false, q: "", sugg: [] });
+  } else {
+    // 가게 바로 앞(70m)에서 찍은 사진은 날짜가 달라도 그 가게로 합침 (최근 것부터)
+    const by = new Map(), rest = [];
+    for (const it of me.items) {
+      const n = it.lat && near(it, 0.07)[0];
+      if (n) { if (!by.has(n.p)) by.set(n.p, []); by.get(n.p).push(it); } else rest.push(it);
+    }
+    for (const [pl, its] of by) {
+      its.sort(newest);
+      me.groups.push({ items: its, place: pl, byPlace: true, skip: false, q: "", sugg: near(center(its), 0.3).slice(0, 4) });
+    }
+    me.groups.sort((a, b) => b.items[0].t - a.items[0].t);
+    // 나머지는 같은 때·같은 곳끼리: 시간 순으로, 1시간 반 넘게 벌어지거나 300m 넘게 떨어지면 새 묶음
+    let g = null;
+    for (const it of rest.sort((a, b) => a.t - b.t)) {
+      const last = g && g.items[g.items.length - 1], lastGps = g && [...g.items].reverse().find((x) => x.lat);
+      const far = lastGps && it.lat && km(lastGps, it) > 0.3;
+      if (!g || it.t - last.t > 90 * 60e3 || far) me.groups.push((g = { items: [], place: null, skip: false, q: "" }));
+      g.items.push(it);
+    }
+    for (const gr of me.groups) if (!gr.sugg) { const c = center(gr.items); gr.sugg = c ? near(c, 0.3).slice(0, 4) : []; }
   }
-  for (const gr of me.groups) {
-    const gps = gr.items.filter((x) => x.lat);
-    if (gps.length) {
-      const c = { lat: gps.reduce((a, x) => a + x.lat, 0) / gps.length, lng: gps.reduce((a, x) => a + x.lng, 0) / gps.length };
-      gr.sugg = places.map((p) => ({ p, d: km(c, p) })).filter((x) => x.d < 0.3).sort((a, b) => a.d - b.d).slice(0, 4);
-      if (gr.sugg[0] && gr.sugg[0].d < 0.07) gr.place = gr.sugg[0].p;   // 70m 안이면 미리 골라 둠
-    } else gr.sugg = [];
-  }
-  const nGps = me.items.filter((x) => x.lat).length;
-  wrap.innerHTML = `<div class="bulkhead"><h3>📷 사진 한꺼번에 올리기</h3><button data-bclose>닫기</button></div>
-    <div class="bulkinfo">사진 ${me.items.length}장 · ${me.groups.length}묶음${nGps ? ` · 위치 있는 사진 ${nGps}장은 가까운 가게를 추천해요` : " · 사진에 위치가 없어서 가게를 직접 찾아 주세요"}. 사진을 누르면 구도를 잡거나 뺄 수 있어요.</div>
+  const nGps = me.items.filter((x) => x.lat).length, nPlace = me.groups.filter((x) => x.byPlace).length;
+  const info = only ? `고른 ${metas.length}장 중 이 가게 근처(150m)에서 찍은 사진 ${me.items.length}장이에요. 최근 것부터, 사진을 누르면 구도를 잡거나 뺄 수 있어요.`
+    : `사진 ${me.items.length}장 · ${me.groups.length}묶음${nPlace ? ` · 가게 앞에서 찍은 사진은 날짜가 달라도 가게별로 모았어요(${nPlace}곳)` : nGps ? ` · 위치 있는 사진은 가까운 가게를 추천해요` : " · 사진에 위치가 없어서 가게를 직접 찾아 주세요"}. 사진을 누르면 구도를 잡거나 뺄 수 있어요.`;
+  wrap.innerHTML = `<div class="bulkhead"><h3>${title}</h3><button data-bclose>닫기</button></div>
+    <div class="bulkinfo">${info}</div>
     <div class="bulkbody"></div><div class="bulkfoot"><button data-bgo></button></div>`;
   wrap.querySelector(".bulkbody").innerHTML = me.groups.map((_, i) => `<div class="bgroup" data-g="${i}"></div>`).join("");
   me.groups.forEach((_, i) => bulkGroup(i));
   bulkFoot();
+}
+const bulkDay = (t) => { const d = new Date(t); return `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + "년 " : ""}${d.getMonth() + 1}월 ${d.getDate()}일`; };
+function bulkTitle(g) {
+  if (!g.byPlace) return bulkWhen(g.items[0].t);
+  const days = [...new Set(g.items.filter((x) => x.t).map((x) => bulkDay(x.t)))];
+  if (!days.length) return "날짜 모름";
+  return `${days.length > 1 ? `${days.length}번 방문 · ` : ""}${days.slice(0, 3).join(", ")}${days.length > 3 ? " …" : ""}`;
 }
 const bulkWhen = (t) => { if (!t) return "날짜 모름"; const d = new Date(t), h = d.getHours(); return `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + "년 " : ""}${d.getMonth() + 1}월 ${d.getDate()}일 ${h < 12 ? "오전" : "오후"} ${h % 12 || 12}시`; };
 const bulkArea = (p) => esc((p.dong ? dongNames(p.dong)[0] : "") || (p.addr || "").split(" ").slice(1, 3).join(" "));
@@ -1668,7 +1703,8 @@ function bulkGroup(i) {
   const g = bulk.groups[i], el = bulk.wrap.querySelector(`.bgroup[data-g="${i}"]`); if (!el) return;
   const n = g.items.filter((x) => !x.off).length;
   el.classList.toggle("skip", g.skip);
-  el.innerHTML = `<div class="bghead"><b>${bulkWhen(g.items[0].t)}</b><span>${n}장</span><button data-bskip>${g.skip ? "되살리기" : "건너뛰기"}</button></div>
+  const room = g.place ? Math.max(0, MAX_PHOTOS - photoNames(g.place).length) : MAX_PHOTOS;
+  el.innerHTML = `<div class="bghead"><b>${bulkTitle(g)}</b><span>${n}장${g.place && n > room ? ` · ${room}장까지` : ""}</span><button data-bskip>${g.skip ? "되살리기" : "건너뛰기"}</button></div>
     <div class="bthumbs">${g.items.map((it, j) => `<button class="bthumb${it.off ? " off" : ""}${it.crop && !it.off ? " cropped" : ""}" data-bt="${j}" aria-label="사진 ${j + 1} 구도 잡기"><img src="${it.thumb}" alt=""></button>`).join("")}</div>
     ${g.place ? `<div class="bpick"><span>📍 <b>${esc(g.place.name)}</b><small>${bulkArea(g.place)}${bulkHave(g.place)}</small></span><button data-bchange>바꾸기</button></div>`
       : `<div class="bsugg">${(g.sugg || []).map((x) => `<button data-bp="${x.p.id}">${esc(x.p.name)}<small>${Math.round(x.d * 1000)}m${bulkHave(x.p)}</small></button>`).join("")}</div>
@@ -1708,7 +1744,7 @@ async function bulkUpload() {
   }
   bulk.busy = false;
   toast(fail ? `${ok}장 올렸어요 · ${fail}장은 실패했어요` : `${by.size}곳에 사진 ${ok}장을 올렸어요`);
-  bulkClose(); refresh();
+  bulkClose(); refresh(); if (state.selected) renderDetail(state.selected);
 }
 document.addEventListener("click", (e) => {
   if (!bulk || !e.target.closest || !e.target.closest(".bulkwrap")) return;
@@ -2153,7 +2189,7 @@ function renderDetail(p) {
       <div class="graderow"><span>내 등급<small>${gradeOf(p) ? "다시 누르면 지워져요" : "친구에게도 보여요"}</small></span><div class="gpick">${GRADES.map((g) => `<button class="gbtn ${gradeOf(p) === g ? "on g" + g : ""}" data-grade="${g}" aria-label="${g}등급">${g}</button>`).join("")}</div></div>
       <input class="sayin" id="sayIn" maxlength="120" placeholder="한마디 (친구에게도 보여요)" value="${esc((says[p.id] || {}).say || "")}">
       <input class="sayin" id="dishIn" maxlength="40" placeholder="꼭 시킬 메뉴 (친구에게도 보여요)" value="${esc((says[p.id] || {}).dish || "")}">
-      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 첫 장이 대표${photoNames(p).length ? " · 누르면 구도 잡기" : ""}${photoNames(p).length > 1 ? (IS_MOBILE ? " · 꾹 눌러 끌면 순서 바꾸기" : " · 끌면 순서 바꾸기") : ""}</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb" data-v="${v}"><img src="${photoSrc(p, v)}" alt="" loading="lazy" draggable="false"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div></div>
+      <div class="photorow"><div class="photohead">내 사진 ${photoNames(p).length}/${MAX_PHOTOS} · 첫 장이 대표${photoNames(p).length ? " · 누르면 구도 잡기" : ""}${photoNames(p).length > 1 ? (IS_MOBILE ? " · 꾹 눌러 끌면 순서 바꾸기" : " · 끌면 순서 바꾸기") : ""}</div><div class="pthumbs">${photoNames(p).map((v) => `<span class="pthumb" data-v="${v}"><img src="${photoSrc(p, v)}" alt="" loading="lazy" draggable="false"><button data-pdel="${v}" aria-label="이 사진 지우기">✕</button></span>`).join("")}${photoNames(p).length < MAX_PHOTOS ? `<label class="pthumb add" id="photoAdd" aria-label="사진 추가">＋<input type="file" accept="image/*" multiple id="photoIn" hidden></label>` : ""}</div>${photoNames(p).length < MAX_PHOTOS ? `<button class="pfind" id="photoFind">📍 앨범에서 이 가게 사진 찾기</button>` : ""}</div>
       <textarea class="memo" id="memo" rows="1" placeholder="메모 (나만 보여요)" maxlength="300">${esc(notes[p.id] || "")}</textarea>
     </div>` : ""}
     ${p.types && p.types.length ? `<div class="ttags">${p.types.map((x) => TYPE[x] ? `<span>${TYPE[x].emoji} ${TYPE[x].label}</span>` : "").join("")}</div>` : ""}
@@ -2175,6 +2211,7 @@ function renderDetail(p) {
   $("#back").onclick = () => select(null);
   $("#dshare").onclick = () => sharePlace(p);
   const pin = $("#photoIn"); if (pin) pin.onchange = () => { if (pin.files.length) uploadPhotos(p, pin.files); };
+  const pf = $("#photoFind"); if (pf) pf.onclick = () => openBulk(p);
   document.querySelectorAll("#pDetail [data-pdel]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); deletePhoto(p, b.dataset.pdel); }));
   const gal = $("#pgal"), dots = $("#pdots");
   if (gal && dots) gal.onscroll = () => { const k = Math.round(gal.scrollLeft / gal.clientWidth); [...dots.children].forEach((d, i) => d.classList.toggle("on", i === k)); };
