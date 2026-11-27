@@ -1,0 +1,20 @@
+# 시험용: GitHub 서버에서 네이버 요청이 통과하는지 (결과는 annotation 으로). 확인 후 지움
+name: naver-test
+on:
+  push:
+    paths: [".github/workflows/naver-test.yml"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: naver
+        run: |
+          UA="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+          for id in 2140397652 31627326 11725959; do
+            code=$(curl -s -L --max-time 20 -A "$UA" -H "Accept-Language: ko-KR,ko;q=0.9" -o body.html -w "%{http_code}" "https://m.place.naver.com/restaurant/$id/home")
+            apollo=$(grep -c "__APOLLO_STATE__" body.html || true)
+            echo "::notice::place $id http=$code apollo=$apollo size=$(wc -c < body.html)"
+            sleep 3
+          done
+          code=$(curl -s --max-time 20 -A "$UA" -o list.json -w "%{http_code}" "https://pages.map.naver.com/save-pages/api/maps-bookmark/v3/shares/00000000000000000000000000000000/bookmarks?start=0&limit=10")
+          echo "::notice::bookmarks(fake id) http=$code body=$(head -c 120 list.json | tr -d '\n')"
